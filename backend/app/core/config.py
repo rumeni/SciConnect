@@ -13,6 +13,15 @@ class Settings(BaseSettings):
     )
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
+    # Turning an institution address into map coordinates calls an external
+    # service, so it can be switched off for offline or air-gapped runs.
+    geocoding_enabled: bool = True
+    geocoding_url: str = "https://nominatim.openstreetmap.org/search"
+    geocoding_timeout_seconds: float = 8.0
+    # Nominatim's usage policy requires an identifying User-Agent. Point this at
+    # your own deployment before using the public service in earnest.
+    geocoding_user_agent: str = "SciConnect/0.1 (https://example.org/sciconnect)"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="APP_",

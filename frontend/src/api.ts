@@ -1,6 +1,11 @@
 import type {
   Catalogs,
   CatalogItem,
+  CreatedInstitution,
+  EntityDetail,
+  EntityKind,
+  EntityRef,
+  FilterOptions,
   Institution,
   InstitutionAnalysis,
   InstitutionInstrument,
@@ -36,6 +41,14 @@ async function readError(response: Response): Promise<string> {
   return `Request failed (${response.status})`;
 }
 
+function asQuery(filters: Record<string, string>): URLSearchParams {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) query.append(key, value);
+  });
+  return query;
+}
+
 function post<T>(path: string, payload: unknown): Promise<T> {
   return request<T>(path, {
     method: "POST",
@@ -55,16 +68,14 @@ export const api = {
   institutionAnalyses: () =>
     request<InstitutionAnalysis[]>("/api/v1/catalog/institution-analyses"),
 
-  search: (filters: Record<string, string>) => {
-    const query = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) query.append(key, value);
-    });
-    return request<SearchResponse>(`/api/v1/capabilities/search?${query}`);
-  },
+  search: (filters: Record<string, string>) =>
+    request<SearchResponse>(`/api/v1/capabilities/search?${asQuery(filters)}`),
+
+  filterOptions: (filters: Record<string, string>) =>
+    request<FilterOptions>(`/api/v1/capabilities/filter-options?${asQuery(filters)}`),
 
   createInstitution: (payload: unknown) =>
-    post<Institution>("/api/v1/catalog/institutions", payload),
+    post<CreatedInstitution>("/api/v1/catalog/institutions", payload),
   createInstrumentType: (payload: unknown) =>
     post<CatalogItem>("/api/v1/catalog/instrument-types", payload),
   createAnalysisType: (payload: unknown) =>
@@ -84,6 +95,21 @@ export const api = {
     post<unknown>(`/api/v1/institution-analyses/${analysisId}/targets`, payload),
   linkResearcher: (analysisId: number, payload: unknown) =>
     post<unknown>(`/api/v1/institution-analyses/${analysisId}/researchers`, payload),
+
+  detail: async (ref: EntityRef): Promise<EntityDetail> => {
+    const data = await request<never>(`/api/v1${DETAIL_PATHS[ref.kind]}/${ref.id}`);
+    return { kind: ref.kind, data } as EntityDetail;
+  },
+};
+
+const DETAIL_PATHS: Record<EntityKind, string> = {
+  institution: "/catalog/institutions",
+  researcher: "/catalog/researchers",
+  instrument: "/catalog/institution-instruments",
+  analysis: "/catalog/institution-analyses",
+  microorganism: "/catalog/microorganisms",
+  "instrument-type": "/catalog/instrument-types",
+  "analysis-type": "/catalog/analysis-types",
 };
 
 export async function loadCatalogs(): Promise<Catalogs> {

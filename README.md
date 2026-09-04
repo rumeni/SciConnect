@@ -58,6 +58,17 @@ This deletes everything in the local database:
 docker compose down -v && docker compose up --build
 ```
 
+## After changing dependencies
+
+`node_modules` is a named volume, so it shadows whatever the image installed and
+survives a rebuild. The frontend container therefore runs `npm install` on start,
+which picks up anything added to `package.json`. After changing dependencies,
+rebuild and recreate the container so that runs:
+
+```bash
+docker compose up -d --build frontend
+```
+
 Open:
 
 - API documentation: http://localhost:8000/docs
@@ -72,6 +83,44 @@ GET /api/v1/capabilities/search?analysis_type_ids=1&instrument_type_ids=1&microo
 
 Filters from different categories use `AND`. Multiple IDs inside one category
 currently use `OR`.
+
+Each filter only lists values that still match the other choices, so a
+combination cannot be assembled that returns nothing. Selecting a researcher,
+for example, narrows the institution list to the one that employs them and the
+target organism list to the organisms their analyses detect. A filter with
+nothing left to offer is disabled rather than silently empty.
+
+## Exploring the results
+
+Every name shown in a search result opens a detail view: the institution, each
+instrument, each analysis offering, each target organism and each researcher.
+The panel lists what that record is connected to, and those connections are
+themselves clickable, so an instrument leads to the analyses that use it, an
+analysis to its institution, organisms and researchers, and a researcher back
+to their institution. `Back` walks the trail in reverse. A selected filter has
+a `View details` link that opens the same view for the filtered entity.
+
+An institution shows a zoomable map of its location, drawn with
+[Leaflet](https://leafletjs.com) over OpenStreetMap tiles.
+
+The position comes from the institution's street address. The address is looked
+up once, when the institution is created, using OpenStreetMap's
+[Nominatim](https://nominatim.openstreetmap.org) service, and the resulting
+coordinates are stored on the record. Nothing is geocoded when the catalog is
+browsed. An address that cannot be found still creates the institution; the form
+says so, and the detail view shows a note instead of an empty map.
+
+This means two outbound dependencies at runtime: map tiles from
+`tile.openstreetmap.org` in the browser, and address lookups to
+`nominatim.openstreetmap.org` from the API when an institution is created.
+Everything else works offline against the local API. Set
+`APP_GEOCODING_ENABLED=false` to skip lookups entirely. Nominatim's usage policy
+asks for an identifying `User-Agent` and limits request rates, so set
+`APP_GEOCODING_USER_AGENT` to your own deployment before using the public
+service in earnest, or point `APP_GEOCODING_URL` at your own instance.
+
+Seeded institutions carry invented street addresses and hardcoded coordinates,
+so seeding never needs the network.
 
 ## Adding data
 

@@ -25,6 +25,8 @@ services:
       # Loads the demo catalog on the first start against an empty volume.
       # Set to false to start with an empty database.
       APP_SEED_ON_STARTUP: "${APP_SEED_ON_STARTUP:-true}"
+      # Address lookup needs outbound internet. Set false to run without it.
+      APP_GEOCODING_ENABLED: "${APP_GEOCODING_ENABLED:-true}"
     ports:
       - "8000:8000"
     volumes:
@@ -66,7 +68,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      # The entrypoint installs dependencies first, which is slow on a cold
+      # node_modules volume.
+      start_period: 90s
 
 
 volumes:

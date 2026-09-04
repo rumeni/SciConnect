@@ -5,7 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.modules.catalog import service
+from app.modules.catalog import details, service
+from app.modules.catalog.geocoding import Geocoder, default_geocoder
 from app.modules.catalog.models import (
     AnalysisType,
     Institution,
@@ -16,29 +17,43 @@ from app.modules.catalog.models import (
     Researcher,
 )
 from app.modules.catalog.schemas import (
+    AnalysisDetailView,
     AnalysisInstrumentLinkCreate,
     AnalysisResearcherLinkCreate,
     AnalysisTargetLinkCreate,
+    AnalysisTypeDetailView,
     CapabilitySearchResponse,
     CatalogItem,
     CatalogTypeCreate,
+    FilterOptions,
     InstitutionAnalysisCreate,
     InstitutionAnalysisItem,
     InstitutionCreate,
     InstitutionDetail,
+    InstitutionDetailView,
     InstitutionInstrumentCreate,
     InstitutionInstrumentItem,
     InstitutionSummary,
+    InstrumentDetailView,
+    InstrumentTypeDetailView,
     LinkAck,
     MicroorganismCreate,
+    MicroorganismDetailView,
     MicroorganismItem,
     ResearcherCreate,
+    ResearcherDetailView,
     ResearcherItem,
 )
-from app.modules.catalog.service import CapabilityFilters, search_capabilities
+from app.modules.catalog.service import (
+    CapabilityFilters,
+    filter_options,
+    search_capabilities,
+)
 
 router = APIRouter(prefix="/api/v1")
 DbSession = Annotated[Session, Depends(get_db)]
+# Injected so tests, and offline deployments, can swap the address lookup out.
+AddressLookup = Annotated[Geocoder, Depends(default_geocoder)]
 
 
 def _commit(db: Session, work):
@@ -65,9 +80,7 @@ def list_institutions(db: DbSession) -> list[Institution]:
     return list(db.scalars(query))
 
 
-@router.get("/capabilities/search", response_model=CapabilitySearchResponse)
-def capability_search(
-    db: DbSession,
+def selected_filters(
     institution_ids: Annotated[list[int] | None, Query()] = None,
     instrument_type_ids: Annotated[list[int] | None, Query()] = None,
     analysis_type_ids: Annotated[list[int] | None, Query()] = None,
@@ -75,10 +88,8 @@ def capability_search(
     researcher_ids: Annotated[list[int] | None, Query()] = None,
     country: str | None = None,
     city: str | None = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> CapabilitySearchResponse:
-    filters = CapabilityFilters(
+) -> CapabilityFilters:
+    return CapabilityFilters(
         institution_ids=institution_ids or [],
         instrument_type_ids=instrument_type_ids or [],
         analysis_type_ids=analysis_type_ids or [],
@@ -87,7 +98,25 @@ def capability_search(
         country=country,
         city=city,
     )
+
+
+Filters = Annotated[CapabilityFilters, Depends(selected_filters)]
+
+
+@router.get("/capabilities/search", response_model=CapabilitySearchResponse)
+def capability_search(
+    db: DbSession,
+    filters: Filters,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CapabilitySearchResponse:
     return search_capabilities(db, filters, limit=limit, offset=offset)
+
+
+@router.get("/capabilities/filter-options", response_model=FilterOptions)
+def capability_filter_options(db: DbSession, filters: Filters) -> FilterOptions:
+    """The values each filter can still usefully offer, given the other choices."""
+    return filter_options(db, filters)
 
 
 @router.get("/catalog/instrument-types", response_model=list[CatalogItem])
@@ -133,13 +162,67 @@ def list_institution_analyses(
     return list(db.scalars(query.order_by(InstitutionAnalysis.id)))
 
 
+# --- Detail views -----------------------------------------------------------
+# Every entity a search result displays can be opened on its own, with the
+# records it is connected to. Unlike public search these do not hide archived
+# records: the status is returned so the caller can show it.
+
+
+def _detail(work):
+    try:
+        return work()
+    except service.NotFoundError as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+
+
+@router.get("/catalog/institutions/{institution_id}", response_model=InstitutionDetailView)
+def institution_detail(db: DbSession, institution_id: int) -> InstitutionDetailView:
+    return _detail(lambda: details.institution_detail(db, institution_id))
+
+
+@router.get("/catalog/researchers/{researcher_id}", response_model=ResearcherDetailView)
+def researcher_detail(db: DbSession, researcher_id: int) -> ResearcherDetailView:
+    return _detail(lambda: details.researcher_detail(db, researcher_id))
+
+
+@router.get(
+    "/catalog/institution-instruments/{instrument_id}", response_model=InstrumentDetailView
+)
+def instrument_detail(db: DbSession, instrument_id: int) -> InstrumentDetailView:
+    return _detail(lambda: details.instrument_detail(db, instrument_id))
+
+
+@router.get("/catalog/institution-analyses/{analysis_id}", response_model=AnalysisDetailView)
+def analysis_detail(db: DbSession, analysis_id: int) -> AnalysisDetailView:
+    return _detail(lambda: details.analysis_detail(db, analysis_id))
+
+
+@router.get(
+    "/catalog/microorganisms/{microorganism_id}", response_model=MicroorganismDetailView
+)
+def microorganism_detail(db: DbSession, microorganism_id: int) -> MicroorganismDetailView:
+    return _detail(lambda: details.microorganism_detail(db, microorganism_id))
+
+
+@router.get("/catalog/instrument-types/{type_id}", response_model=InstrumentTypeDetailView)
+def instrument_type_detail(db: DbSession, type_id: int) -> InstrumentTypeDetailView:
+    return _detail(lambda: details.instrument_type_detail(db, type_id))
+
+
+@router.get("/catalog/analysis-types/{type_id}", response_model=AnalysisTypeDetailView)
+def analysis_type_detail(db: DbSession, type_id: int) -> AnalysisTypeDetailView:
+    return _detail(lambda: details.analysis_type_detail(db, type_id))
+
+
 @router.post(
     "/catalog/institutions",
     response_model=InstitutionDetail,
     status_code=status.HTTP_201_CREATED,
 )
-def create_institution(db: DbSession, payload: InstitutionCreate) -> Institution:
-    return _commit(db, lambda: service.create_institution(db, payload))
+def create_institution(
+    db: DbSession, payload: InstitutionCreate, geocoder: AddressLookup
+) -> Institution:
+    return _commit(db, lambda: service.create_institution(db, payload, geocoder))
 
 
 @router.post(

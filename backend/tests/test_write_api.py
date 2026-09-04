@@ -207,3 +207,60 @@ def test_researchers_can_be_listed_per_institution(client: TestClient) -> None:
     response = client.get("/api/v1/catalog/researchers", params={"institution_id": first["id"]})
     assert response.status_code == 200
     assert [item["full_name"] for item in response.json()] == ["First Person"]
+
+
+def test_an_institution_can_be_created_with_map_coordinates(client: TestClient) -> None:
+    created = _create(
+        client,
+        "/catalog/institutions",
+        {
+            "name": "Mapped Institute",
+            "city": "Belgrade",
+            "country": "Serbia",
+            "latitude": 44.8069,
+            "longitude": 20.4744,
+        },
+    )
+
+    assert created["latitude"] == 44.8069
+    body = client.get(f"/api/v1/catalog/institutions/{created['id']}").json()
+    assert (body["latitude"], body["longitude"]) == (44.8069, 20.4744)
+
+
+def test_an_institution_without_coordinates_reports_them_as_null(client: TestClient) -> None:
+    created = _build_institution(client)
+
+    body = client.get(f"/api/v1/catalog/institutions/{created['id']}").json()
+
+    assert body["latitude"] is None
+    assert body["longitude"] is None
+
+
+def test_one_coordinate_without_the_other_is_rejected(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/catalog/institutions",
+        json={
+            "name": "Half Mapped",
+            "city": "Belgrade",
+            "country": "Serbia",
+            "latitude": 44.8069,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "together" in response.text
+
+
+def test_a_coordinate_outside_its_range_is_rejected(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/catalog/institutions",
+        json={
+            "name": "Off The Globe",
+            "city": "Belgrade",
+            "country": "Serbia",
+            "latitude": 120.0,
+            "longitude": 20.0,
+        },
+    )
+
+    assert response.status_code == 422

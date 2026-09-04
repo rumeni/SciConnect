@@ -1,9 +1,10 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from sqlalchemy import Select, exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.modules.catalog.geocoding import Geocoder, address_query, no_geocoder
 from app.modules.catalog.models import (
     AnalysisType,
     Institution,
@@ -20,6 +21,8 @@ from app.modules.catalog.schemas import (
     AnalysisMatch,
     CapabilityResult,
     CapabilitySearchResponse,
+    FilterOption,
+    FilterOptions,
     InstitutionAnalysisCreate,
     InstitutionCreate,
     InstitutionInstrumentCreate,
@@ -165,120 +168,124 @@ def search_capabilities(
     total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
 
     query = (
-        base.options(
-            selectinload(Institution.instruments).selectinload(
-                InstitutionInstrument.instrument_type
-            ),
-            selectinload(Institution.analyses).selectinload(InstitutionAnalysis.analysis_type),
-            selectinload(Institution.analyses)
-            .selectinload(InstitutionAnalysis.instrument_links)
-            .selectinload(InstitutionAnalysisInstrument.institution_instrument)
-            .selectinload(InstitutionInstrument.instrument_type),
-            selectinload(Institution.analyses)
-            .selectinload(InstitutionAnalysis.target_links)
-            .selectinload(InstitutionAnalysisTarget.microorganism),
-            selectinload(Institution.analyses)
-            .selectinload(InstitutionAnalysis.researcher_links)
-            .selectinload(InstitutionAnalysisResearcher.researcher),
-            selectinload(Institution.researchers),
-        )
+        base.options(*_capability_loads())
         .order_by(Institution.name)
         .limit(limit)
         .offset(offset)
     )
     institutions = db.scalars(query).unique().all()
 
-    results: list[CapabilityResult] = []
-    for institution in institutions:
-        matched_inventory = [
-            item
-            for item in institution.instruments
-            if item.status == "operational"
-            and (
-                not filters.instrument_type_ids
-                or item.instrument_type_id in filters.instrument_type_ids
-            )
+    results = [_result_for(institution, filters) for institution in institutions]
+
+    return CapabilitySearchResponse(items=results, total=total, limit=limit, offset=offset)
+
+
+def _capability_loads() -> list:
+    return [
+        selectinload(Institution.instruments).selectinload(
+            InstitutionInstrument.instrument_type
+        ),
+        selectinload(Institution.analyses).selectinload(InstitutionAnalysis.analysis_type),
+        selectinload(Institution.analyses)
+        .selectinload(InstitutionAnalysis.instrument_links)
+        .selectinload(InstitutionAnalysisInstrument.institution_instrument)
+        .selectinload(InstitutionInstrument.instrument_type),
+        selectinload(Institution.analyses)
+        .selectinload(InstitutionAnalysis.target_links)
+        .selectinload(InstitutionAnalysisTarget.microorganism),
+        selectinload(Institution.analyses)
+        .selectinload(InstitutionAnalysis.researcher_links)
+        .selectinload(InstitutionAnalysisResearcher.researcher),
+        selectinload(Institution.researchers),
+    ]
+
+
+def _result_for(institution: Institution, filters: CapabilityFilters) -> CapabilityResult:
+    matched_inventory = [
+        item
+        for item in institution.instruments
+        if item.status == "operational"
+        and (
+            not filters.instrument_type_ids
+            or item.instrument_type_id in filters.instrument_type_ids
+        )
+    ]
+
+    matched_staff = [
+        person
+        for person in institution.researchers
+        if person.status == "active"
+        and (not filters.researcher_ids or person.id in filters.researcher_ids)
+    ]
+
+    matched_analyses: list[AnalysisMatch] = []
+    for offering in institution.analyses:
+        if offering.availability not in {"available", "limited"}:
+            continue
+        if (
+            filters.analysis_type_ids
+            and offering.analysis_type_id not in filters.analysis_type_ids
+        ):
+            continue
+        targets = [link.microorganism for link in offering.target_links]
+        if filters.microorganism_ids and not any(
+            target.id in filters.microorganism_ids for target in targets
+        ):
+            continue
+
+        offering_instruments = [
+            link.institution_instrument
+            for link in offering.instrument_links
+            if link.institution_instrument.status == "operational"
         ]
-
-        matched_staff = [
-            person
-            for person in institution.researchers
-            if person.status == "active"
-            and (not filters.researcher_ids or person.id in filters.researcher_ids)
-        ]
-
-        matched_analyses: list[AnalysisMatch] = []
-        for offering in institution.analyses:
-            if offering.availability not in {"available", "limited"}:
-                continue
-            if (
-                filters.analysis_type_ids
-                and offering.analysis_type_id not in filters.analysis_type_ids
-            ):
-                continue
-            targets = [link.microorganism for link in offering.target_links]
-            if filters.microorganism_ids and not any(
-                target.id in filters.microorganism_ids for target in targets
-            ):
-                continue
-
+        if filters.instrument_type_ids:
             offering_instruments = [
-                link.institution_instrument
-                for link in offering.instrument_links
-                if link.institution_instrument.status == "operational"
+                item
+                for item in offering_instruments
+                if item.instrument_type_id in filters.instrument_type_ids
             ]
-            if filters.instrument_type_ids:
-                offering_instruments = [
-                    item
-                    for item in offering_instruments
-                    if item.instrument_type_id in filters.instrument_type_ids
-                ]
-                if not offering_instruments:
-                    continue
+            if not offering_instruments:
+                continue
 
+        offering_researchers = [
+            (link.researcher, link.role)
+            for link in offering.researcher_links
+            if link.researcher.status == "active"
+        ]
+        if filters.researcher_ids:
             offering_researchers = [
-                (link.researcher, link.role)
-                for link in offering.researcher_links
-                if link.researcher.status == "active"
+                entry
+                for entry in offering_researchers
+                if entry[0].id in filters.researcher_ids
             ]
-            if filters.researcher_ids:
-                offering_researchers = [
-                    entry
-                    for entry in offering_researchers
-                    if entry[0].id in filters.researcher_ids
-                ]
-                if not offering_researchers:
-                    continue
+            if not offering_researchers:
+                continue
 
-            matched_analyses.append(
-                AnalysisMatch(
-                    id=offering.id,
-                    analysis_type_id=offering.analysis_type_id,
-                    type_name=offering.analysis_type.name,
-                    public_name=offering.public_name,
-                    availability=offering.availability,
-                    turnaround_days=offering.turnaround_days,
-                    instruments=[_instrument_match(item) for item in offering_instruments],
-                    targets=[
-                        TargetMatch(id=target.id, scientific_name=target.scientific_name)
-                        for target in targets
-                    ],
-                    researchers=[
-                        _researcher_match(person, role) for person, role in offering_researchers
-                    ],
-                )
-            )
-
-        results.append(
-            CapabilityResult(
-                institution=InstitutionSummary.model_validate(institution),
-                matched_instruments=[_instrument_match(item) for item in matched_inventory],
-                matched_analyses=matched_analyses,
-                matched_researchers=[_researcher_match(person) for person in matched_staff],
+        matched_analyses.append(
+            AnalysisMatch(
+                id=offering.id,
+                analysis_type_id=offering.analysis_type_id,
+                type_name=offering.analysis_type.name,
+                public_name=offering.public_name,
+                availability=offering.availability,
+                turnaround_days=offering.turnaround_days,
+                instruments=[_instrument_match(item) for item in offering_instruments],
+                targets=[
+                    TargetMatch(id=target.id, scientific_name=target.scientific_name)
+                    for target in targets
+                ],
+                researchers=[
+                    _researcher_match(person, role) for person, role in offering_researchers
+                ],
             )
         )
 
-    return CapabilitySearchResponse(items=results, total=total, limit=limit, offset=offset)
+    return CapabilityResult(
+        institution=InstitutionSummary.model_validate(institution),
+        matched_instruments=[_instrument_match(item) for item in matched_inventory],
+        matched_analyses=matched_analyses,
+        matched_researchers=[_researcher_match(person) for person in matched_staff],
+    )
 
 
 def link_analysis_instrument(
@@ -331,14 +338,32 @@ def _get_or_404(db: Session, model: type, record_id: int, label: str):
     return record
 
 
-def create_institution(db: Session, payload: InstitutionCreate) -> Institution:
+def create_institution(
+    db: Session,
+    payload: InstitutionCreate,
+    geocoder: Geocoder = no_geocoder,
+) -> Institution:
     slug = payload.slug or slugify(payload.name)
     if db.scalar(select(Institution.id).where(Institution.slug == slug)) is not None:
         raise ConflictError(f"Institution slug '{slug}' is already taken")
-    institution = Institution(**payload.model_dump(exclude={"slug"}), slug=slug)
+
+    fields = payload.model_dump(exclude={"slug"})
+    if fields["latitude"] is None:
+        located = locate(payload, geocoder)
+        if located is not None:
+            fields["latitude"] = located.latitude
+            fields["longitude"] = located.longitude
+
+    institution = Institution(**fields, slug=slug)
     db.add(institution)
     db.flush()
     return institution
+
+
+def locate(payload: InstitutionCreate, geocoder: Geocoder):
+    """Find coordinates for a written address. Returns None when it cannot be placed."""
+    query = address_query(payload.address, payload.city, payload.country)
+    return geocoder(query) if query else None
 
 
 def create_instrument_type(db: Session, name: str, description: str | None) -> InstrumentType:
@@ -456,3 +481,76 @@ def add_analysis_target(
     db.add(link)
     db.flush()
     return link
+
+
+# --- Filter options ---------------------------------------------------------
+# Each dropdown offers only values that still lead somewhere. Options for one
+# category are computed with every *other* selection applied, so the category's
+# own choice can still be changed while the rest stay consistent.
+#
+# The options are harvested from real search results rather than from separate
+# queries, which guarantees that picking any offered value returns at least one
+# institution. That costs one search per category, which is fine at this
+# catalog's size but would need reworking into aggregate queries if the number
+# of institutions grew large.
+
+
+def _matching_results(db: Session, filters: CapabilityFilters) -> list[CapabilityResult]:
+    query = _base_query(filters).options(*_capability_loads()).order_by(Institution.name)
+    return [_result_for(institution, filters) for institution in db.scalars(query).unique()]
+
+
+def _options(pairs: list[tuple[int, str]]) -> list[FilterOption]:
+    found: dict[int, str] = {}
+    for identifier, label in pairs:
+        found.setdefault(identifier, label)
+    return [
+        FilterOption(id=identifier, label=label)
+        for identifier, label in sorted(found.items(), key=lambda item: item[1].lower())
+    ]
+
+
+def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
+    def without(**cleared: list[int]) -> list[CapabilityResult]:
+        return _matching_results(db, replace(filters, **cleared))
+
+    institutions = without(institution_ids=[])
+    instruments = without(instrument_type_ids=[])
+    analyses = without(analysis_type_ids=[])
+    organisms = without(microorganism_ids=[])
+    researchers = without(researcher_ids=[])
+
+    return FilterOptions(
+        institutions=_options(
+            [(item.institution.id, item.institution.name) for item in institutions]
+        ),
+        instrument_types=_options(
+            [
+                (instrument.instrument_type_id, instrument.type_name)
+                for item in instruments
+                for instrument in item.matched_instruments
+            ]
+        ),
+        analysis_types=_options(
+            [
+                (analysis.analysis_type_id, analysis.type_name)
+                for item in analyses
+                for analysis in item.matched_analyses
+            ]
+        ),
+        microorganisms=_options(
+            [
+                (target.id, target.scientific_name)
+                for item in organisms
+                for analysis in item.matched_analyses
+                for target in analysis.targets
+            ]
+        ),
+        researchers=_options(
+            [
+                (person.id, person.full_name)
+                for item in researchers
+                for person in item.matched_researchers
+            ]
+        ),
+    )

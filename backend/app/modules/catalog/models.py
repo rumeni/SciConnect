@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -34,11 +35,16 @@ class Institution(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(220), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(String(300))
     city: Mapped[str] = mapped_column(String(120), nullable=False)
     country: Mapped[str] = mapped_column(String(120), nullable=False)
     website: Mapped[str | None] = mapped_column(String(500))
     contact_email: Mapped[str | None] = mapped_column(String(320))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    # Map position derived from the address when the institution is written.
+    # Either both coordinates are present or neither is.
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
 
     instruments: Mapped[list[InstitutionInstrument]] = relationship(
         back_populates="institution", cascade="all, delete-orphan"
@@ -52,6 +58,15 @@ class Institution(TimestampMixin, Base):
 
     __table_args__ = (
         CheckConstraint("status IN ('draft', 'active', 'archived')", name="valid_status"),
+        CheckConstraint(
+            "(latitude IS NULL) = (longitude IS NULL)", name="coordinates_are_paired"
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR latitude BETWEEN -90 AND 90", name="latitude_in_range"
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR longitude BETWEEN -180 AND 180", name="longitude_in_range"
+        ),
         Index("ix_institutions_country_city", "country", "city"),
     )
 

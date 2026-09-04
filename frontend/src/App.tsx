@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, loadCatalogs } from "./api";
+import { DetailPanel } from "./DetailPanel";
 import { ManageView } from "./ManageView";
 import { emptyFilters, SearchView, type Filters } from "./SearchView";
-import type { Catalogs, SearchResponse } from "./types";
+import type { Catalogs, EntityRef, FilterOptions, SearchResponse } from "./types";
+
+const noOptions: FilterOptions = {
+  institutions: [],
+  instrument_types: [],
+  analysis_types: [],
+  microorganisms: [],
+  researchers: [],
+};
 
 const emptyCatalogs: Catalogs = {
   institutions: [],
@@ -20,9 +29,13 @@ export default function App() {
   const [view, setView] = useState<View>("search");
   const [catalogs, setCatalogs] = useState<Catalogs>(emptyCatalogs);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [options, setOptions] = useState<FilterOptions>(noOptions);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Opening a related record pushes onto the stack, so "Back" returns to the
+  // record it was reached from.
+  const [detailStack, setDetailStack] = useState<EntityRef[]>([]);
 
   const runSearch = useCallback(async (nextFilters: Filters) => {
     setLoading(true);
@@ -35,6 +48,29 @@ export default function App() {
       setLoading(false);
     }
   }, []);
+
+  // Each filter offers only values that still lead somewhere, so the options
+  // are recomputed whenever a selection changes.
+  useEffect(() => {
+    let active = true;
+    api
+      .filterOptions(filters)
+      .then((next) => {
+        if (active) setOptions(next);
+      })
+      .catch(() => {
+        /* Leave the previous options in place; the search reports failures. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    filters.institution_ids,
+    filters.instrument_type_ids,
+    filters.analysis_type_ids,
+    filters.microorganism_ids,
+    filters.researcher_ids,
+  ]);
 
   const refresh = useCallback(async () => {
     try {
@@ -61,6 +97,10 @@ export default function App() {
     setFilters(emptyFilters);
     void runSearch(emptyFilters);
   };
+
+  const openDetail = (ref: EntityRef) => setDetailStack((current) => [...current, ref]);
+  const closeDetail = useCallback(() => setDetailStack([]), []);
+  const backDetail = () => setDetailStack((current) => current.slice(0, -1));
 
   return (
     <main>
@@ -92,11 +132,12 @@ export default function App() {
 
       {view === "search" ? (
         <SearchView
-          catalogs={catalogs}
+          options={options}
           filters={filters}
           onFilterChange={updateFilter}
           onSearch={() => void runSearch(filters)}
           onClear={clear}
+          onOpen={openDetail}
           results={results}
           loading={loading}
           error={error}
@@ -104,6 +145,13 @@ export default function App() {
       ) : (
         <ManageView catalogs={catalogs} onChanged={() => void refresh()} />
       )}
+
+      <DetailPanel
+        stack={detailStack}
+        onOpen={openDetail}
+        onBack={backDetail}
+        onClose={closeDetail}
+      />
     </main>
   );
 }

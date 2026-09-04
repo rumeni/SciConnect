@@ -68,11 +68,12 @@ function InstitutionForm({ onChanged }: { onChanged: () => void }) {
   const [website, setWebsite] = useState("");
   const [email, setEmail] = useState("");
   const [description, setDescription] = useState("");
+  const [address, setAddress] = useState("");
 
   return (
     <CreateForm
       title="Institution"
-      hint="The slug is derived from the name when you leave it empty."
+      hint="The slug comes from the name when left empty. The address is looked up to place the institution on a map."
       submitLabel="Create institution"
       onDone={onChanged}
       onSubmit={async () => {
@@ -80,6 +81,7 @@ function InstitutionForm({ onChanged }: { onChanged: () => void }) {
           name,
           city,
           country,
+          address: blank(address),
           website: blank(website),
           contact_email: blank(email),
           description: blank(description),
@@ -87,13 +89,22 @@ function InstitutionForm({ onChanged }: { onChanged: () => void }) {
         setName("");
         setCity("");
         setCountry("");
+        setAddress("");
         setWebsite("");
         setEmail("");
         setDescription("");
-        return `Created ${created.name}`;
+        return created.latitude === null
+          ? `Created ${created.name}, but the address could not be placed on a map`
+          : `Created ${created.name}`;
       }}
     >
       <Input label="Name" value={name} onChange={setName} required />
+      <Input
+        label="Street address"
+        value={address}
+        onChange={setAddress}
+        placeholder="Bulevar oslobodjenja 18"
+      />
       <Input label="City" value={city} onChange={setCity} required />
       <Input label="Country" value={country} onChange={setCountry} required />
       <Input label="Website" value={website} onChange={setWebsite} />
