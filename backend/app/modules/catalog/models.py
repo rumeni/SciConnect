@@ -46,6 +46,9 @@ class Institution(TimestampMixin, Base):
     analyses: Mapped[list[InstitutionAnalysis]] = relationship(
         back_populates="institution", cascade="all, delete-orphan"
     )
+    researchers: Mapped[list[Researcher]] = relationship(
+        back_populates="institution", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         CheckConstraint("status IN ('draft', 'active', 'archived')", name="valid_status"),
@@ -138,6 +141,11 @@ class InstitutionAnalysis(TimestampMixin, Base):
     target_links: Mapped[list[InstitutionAnalysisTarget]] = relationship(
         back_populates="institution_analysis", cascade="all, delete-orphan"
     )
+    researcher_links: Mapped[list[InstitutionAnalysisResearcher]] = relationship(
+        back_populates="institution_analysis",
+        cascade="all, delete-orphan",
+        overlaps="analysis_links,researcher",
+    )
 
     __table_args__ = (
         UniqueConstraint("id", "institution_id", name="uq_analysis_same_institution"),
@@ -214,3 +222,65 @@ class InstitutionAnalysisTarget(Base):
         back_populates="target_links"
     )
     microorganism: Mapped[Microorganism] = relationship(back_populates="analysis_links")
+
+
+class Researcher(TimestampMixin, Base):
+    __tablename__ = "researchers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    institution_id: Mapped[int] = mapped_column(
+        ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False
+    )
+    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(160))
+    email: Mapped[str | None] = mapped_column(String(320))
+    orcid: Mapped[str | None] = mapped_column(String(40), unique=True)
+    expertise: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+
+    institution: Mapped[Institution] = relationship(back_populates="researchers")
+    analysis_links: Mapped[list[InstitutionAnalysisResearcher]] = relationship(
+        back_populates="researcher",
+        cascade="all, delete-orphan",
+        overlaps="institution_analysis,researcher_links",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("id", "institution_id", name="uq_researcher_same_institution"),
+        CheckConstraint("status IN ('active', 'inactive', 'archived')", name="valid_status"),
+        Index("ix_researchers_institution", "institution_id"),
+    )
+
+
+class InstitutionAnalysisResearcher(Base):
+    __tablename__ = "institution_analysis_researchers"
+
+    institution_analysis_id: Mapped[int] = mapped_column(primary_key=True)
+    researcher_id: Mapped[int] = mapped_column(primary_key=True)
+    institution_id: Mapped[int] = mapped_column(nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="contributor")
+
+    institution_analysis: Mapped[InstitutionAnalysis] = relationship(
+        back_populates="researcher_links",
+        foreign_keys=[institution_analysis_id, institution_id],
+        overlaps="analysis_links,researcher",
+    )
+    researcher: Mapped[Researcher] = relationship(
+        back_populates="analysis_links",
+        foreign_keys=[researcher_id, institution_id],
+        overlaps="institution_analysis,researcher_links",
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["institution_analysis_id", "institution_id"],
+            ["institution_analyses.id", "institution_analyses.institution_id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["researcher_id", "institution_id"],
+            ["researchers.id", "researchers.institution_id"],
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("role IN ('lead', 'contributor', 'contact')", name="valid_role"),
+    )

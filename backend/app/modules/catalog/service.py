@@ -1,23 +1,47 @@
+import re
 from dataclasses import dataclass, field
 
 from sqlalchemy import Select, exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.modules.catalog.models import (
+    AnalysisType,
     Institution,
     InstitutionAnalysis,
     InstitutionAnalysisInstrument,
+    InstitutionAnalysisResearcher,
     InstitutionAnalysisTarget,
     InstitutionInstrument,
+    InstrumentType,
+    Microorganism,
+    Researcher,
 )
 from app.modules.catalog.schemas import (
     AnalysisMatch,
     CapabilityResult,
     CapabilitySearchResponse,
+    InstitutionAnalysisCreate,
+    InstitutionCreate,
+    InstitutionInstrumentCreate,
     InstitutionSummary,
     InstrumentMatch,
+    MicroorganismCreate,
+    ResearcherCreate,
+    ResearcherMatch,
     TargetMatch,
 )
+
+
+class DomainError(Exception):
+    """A write was rejected because it would break a capability invariant."""
+
+
+class NotFoundError(DomainError):
+    """A referenced record does not exist."""
+
+
+class ConflictError(DomainError):
+    """A record or link with the same identity already exists."""
 
 
 @dataclass(frozen=True)
@@ -26,6 +50,7 @@ class CapabilityFilters:
     instrument_type_ids: list[int] = field(default_factory=list)
     analysis_type_ids: list[int] = field(default_factory=list)
     microorganism_ids: list[int] = field(default_factory=list)
+    researcher_ids: list[int] = field(default_factory=list)
     country: str | None = None
     city: str | None = None
 
@@ -39,6 +64,19 @@ def _instrument_match(instrument: InstitutionInstrument) -> InstrumentMatch:
         manufacturer=instrument.manufacturer,
         model=instrument.model,
         status=instrument.status,
+    )
+
+
+def _researcher_match(researcher: Researcher, role: str | None = None) -> ResearcherMatch:
+    return ResearcherMatch(
+        id=researcher.id,
+        full_name=researcher.full_name,
+        title=researcher.title,
+        email=researcher.email,
+        orcid=researcher.orcid,
+        expertise=researcher.expertise,
+        status=researcher.status,
+        role=role,
     )
 
 
@@ -82,15 +120,36 @@ def _base_query(filters: CapabilityFilters) -> Select[tuple[Institution]]:
                 )
                 .correlate(InstitutionAnalysis)
             )
-        query = query.where(exists(offering))
-    elif filters.instrument_type_ids:
-        query = query.where(
-            exists().where(
-                InstitutionInstrument.institution_id == Institution.id,
-                InstitutionInstrument.instrument_type_id.in_(filters.instrument_type_ids),
-                InstitutionInstrument.status == "operational",
+        if filters.researcher_ids:
+            offering = offering.where(
+                exists()
+                .where(
+                    InstitutionAnalysisResearcher.institution_analysis_id
+                    == InstitutionAnalysis.id,
+                    InstitutionAnalysisResearcher.researcher_id == Researcher.id,
+                    Researcher.id.in_(filters.researcher_ids),
+                    Researcher.status == "active",
+                )
+                .correlate(InstitutionAnalysis)
             )
-        )
+        query = query.where(exists(offering))
+    else:
+        if filters.instrument_type_ids:
+            query = query.where(
+                exists().where(
+                    InstitutionInstrument.institution_id == Institution.id,
+                    InstitutionInstrument.instrument_type_id.in_(filters.instrument_type_ids),
+                    InstitutionInstrument.status == "operational",
+                )
+            )
+        if filters.researcher_ids:
+            query = query.where(
+                exists().where(
+                    Researcher.institution_id == Institution.id,
+                    Researcher.id.in_(filters.researcher_ids),
+                    Researcher.status == "active",
+                )
+            )
 
     return query
 
@@ -118,6 +177,10 @@ def search_capabilities(
             selectinload(Institution.analyses)
             .selectinload(InstitutionAnalysis.target_links)
             .selectinload(InstitutionAnalysisTarget.microorganism),
+            selectinload(Institution.analyses)
+            .selectinload(InstitutionAnalysis.researcher_links)
+            .selectinload(InstitutionAnalysisResearcher.researcher),
+            selectinload(Institution.researchers),
         )
         .order_by(Institution.name)
         .limit(limit)
@@ -135,6 +198,13 @@ def search_capabilities(
                 not filters.instrument_type_ids
                 or item.instrument_type_id in filters.instrument_type_ids
             )
+        ]
+
+        matched_staff = [
+            person
+            for person in institution.researchers
+            if person.status == "active"
+            and (not filters.researcher_ids or person.id in filters.researcher_ids)
         ]
 
         matched_analyses: list[AnalysisMatch] = []
@@ -166,6 +236,20 @@ def search_capabilities(
                 if not offering_instruments:
                     continue
 
+            offering_researchers = [
+                (link.researcher, link.role)
+                for link in offering.researcher_links
+                if link.researcher.status == "active"
+            ]
+            if filters.researcher_ids:
+                offering_researchers = [
+                    entry
+                    for entry in offering_researchers
+                    if entry[0].id in filters.researcher_ids
+                ]
+                if not offering_researchers:
+                    continue
+
             matched_analyses.append(
                 AnalysisMatch(
                     id=offering.id,
@@ -179,6 +263,9 @@ def search_capabilities(
                         TargetMatch(id=target.id, scientific_name=target.scientific_name)
                         for target in targets
                     ],
+                    researchers=[
+                        _researcher_match(person, role) for person, role in offering_researchers
+                    ],
                 )
             )
 
@@ -187,6 +274,7 @@ def search_capabilities(
                 institution=InstitutionSummary.model_validate(institution),
                 matched_instruments=[_instrument_match(item) for item in matched_inventory],
                 matched_analyses=matched_analyses,
+                matched_researchers=[_researcher_match(person) for person in matched_staff],
             )
         )
 
@@ -209,4 +297,162 @@ def link_analysis_instrument(
         usage=usage,
     )
     db.add(link)
+    return link
+
+
+def link_analysis_researcher(
+    db: Session,
+    *,
+    institution_analysis: InstitutionAnalysis,
+    researcher: Researcher,
+    role: str = "contributor",
+) -> InstitutionAnalysisResearcher:
+    if institution_analysis.institution_id != researcher.institution_id:
+        raise ValueError("Analysis and researcher must belong to the same institution")
+    link = InstitutionAnalysisResearcher(
+        institution_analysis_id=institution_analysis.id,
+        researcher_id=researcher.id,
+        institution_id=institution_analysis.institution_id,
+        role=role,
+    )
+    db.add(link)
+    return link
+
+
+def slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "institution"
+
+
+def _get_or_404(db: Session, model: type, record_id: int, label: str):
+    record = db.get(model, record_id)
+    if record is None:
+        raise NotFoundError(f"{label} {record_id} does not exist")
+    return record
+
+
+def create_institution(db: Session, payload: InstitutionCreate) -> Institution:
+    slug = payload.slug or slugify(payload.name)
+    if db.scalar(select(Institution.id).where(Institution.slug == slug)) is not None:
+        raise ConflictError(f"Institution slug '{slug}' is already taken")
+    institution = Institution(**payload.model_dump(exclude={"slug"}), slug=slug)
+    db.add(institution)
+    db.flush()
+    return institution
+
+
+def create_instrument_type(db: Session, name: str, description: str | None) -> InstrumentType:
+    if db.scalar(select(InstrumentType.id).where(InstrumentType.name == name)) is not None:
+        raise ConflictError(f"Instrument type '{name}' already exists")
+    record = InstrumentType(name=name, description=description)
+    db.add(record)
+    db.flush()
+    return record
+
+
+def create_analysis_type(db: Session, name: str, description: str | None) -> AnalysisType:
+    if db.scalar(select(AnalysisType.id).where(AnalysisType.name == name)) is not None:
+        raise ConflictError(f"Analysis type '{name}' already exists")
+    record = AnalysisType(name=name, description=description)
+    db.add(record)
+    db.flush()
+    return record
+
+
+def create_microorganism(db: Session, payload: MicroorganismCreate) -> Microorganism:
+    existing = select(Microorganism.id).where(
+        Microorganism.scientific_name == payload.scientific_name
+    )
+    if db.scalar(existing) is not None:
+        raise ConflictError(f"Microorganism '{payload.scientific_name}' already exists")
+    record = Microorganism(**payload.model_dump())
+    db.add(record)
+    db.flush()
+    return record
+
+
+def create_researcher(db: Session, payload: ResearcherCreate) -> Researcher:
+    _get_or_404(db, Institution, payload.institution_id, "Institution")
+    if payload.orcid and db.scalar(select(Researcher.id).where(Researcher.orcid == payload.orcid)):
+        raise ConflictError(f"A researcher with ORCID '{payload.orcid}' already exists")
+    record = Researcher(**payload.model_dump())
+    db.add(record)
+    db.flush()
+    return record
+
+
+def create_institution_instrument(
+    db: Session, payload: InstitutionInstrumentCreate
+) -> InstitutionInstrument:
+    _get_or_404(db, Institution, payload.institution_id, "Institution")
+    _get_or_404(db, InstrumentType, payload.instrument_type_id, "Instrument type")
+    record = InstitutionInstrument(**payload.model_dump())
+    db.add(record)
+    db.flush()
+    return record
+
+
+def create_institution_analysis(
+    db: Session, payload: InstitutionAnalysisCreate
+) -> InstitutionAnalysis:
+    _get_or_404(db, Institution, payload.institution_id, "Institution")
+    _get_or_404(db, AnalysisType, payload.analysis_type_id, "Analysis type")
+    duplicate = select(InstitutionAnalysis.id).where(
+        InstitutionAnalysis.institution_id == payload.institution_id,
+        InstitutionAnalysis.analysis_type_id == payload.analysis_type_id,
+    )
+    if db.scalar(duplicate) is not None:
+        raise ConflictError("This institution already offers that analysis type")
+    record = InstitutionAnalysis(**payload.model_dump())
+    db.add(record)
+    db.flush()
+    return record
+
+
+def add_analysis_instrument(
+    db: Session, analysis_id: int, instrument_id: int, usage: str
+) -> InstitutionAnalysisInstrument:
+    analysis = _get_or_404(db, InstitutionAnalysis, analysis_id, "Institution analysis")
+    instrument = _get_or_404(db, InstitutionInstrument, instrument_id, "Institution instrument")
+    if db.get(InstitutionAnalysisInstrument, (analysis_id, instrument_id)) is not None:
+        raise ConflictError("That instrument is already linked to this analysis")
+    try:
+        link = link_analysis_instrument(
+            db, institution_analysis=analysis, institution_instrument=instrument, usage=usage
+        )
+    except ValueError as error:
+        raise DomainError(str(error)) from error
+    db.flush()
+    return link
+
+
+def add_analysis_researcher(
+    db: Session, analysis_id: int, researcher_id: int, role: str
+) -> InstitutionAnalysisResearcher:
+    analysis = _get_or_404(db, InstitutionAnalysis, analysis_id, "Institution analysis")
+    researcher = _get_or_404(db, Researcher, researcher_id, "Researcher")
+    if db.get(InstitutionAnalysisResearcher, (analysis_id, researcher_id)) is not None:
+        raise ConflictError("That researcher is already linked to this analysis")
+    try:
+        link = link_analysis_researcher(
+            db, institution_analysis=analysis, researcher=researcher, role=role
+        )
+    except ValueError as error:
+        raise DomainError(str(error)) from error
+    db.flush()
+    return link
+
+
+def add_analysis_target(
+    db: Session, analysis_id: int, microorganism_id: int
+) -> InstitutionAnalysisTarget:
+    _get_or_404(db, InstitutionAnalysis, analysis_id, "Institution analysis")
+    _get_or_404(db, Microorganism, microorganism_id, "Microorganism")
+    if db.get(InstitutionAnalysisTarget, (analysis_id, microorganism_id)) is not None:
+        raise ConflictError("That target organism is already linked to this analysis")
+    link = InstitutionAnalysisTarget(
+        institution_analysis_id=analysis_id, microorganism_id=microorganism_id
+    )
+    db.add(link)
+    db.flush()
     return link

@@ -22,6 +22,9 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sciconnect}:${POSTGRES_PASSWORD:-sciconnect-dev}@db:5432/${POSTGRES_DB:-sciconnect}
       APP_ENV: development
       APP_CORS_ORIGINS: '["http://localhost:5173"]'
+      # Loads the demo catalog on the first start against an empty volume.
+      # Set to false to start with an empty database.
+      APP_SEED_ON_STARTUP: "${APP_SEED_ON_STARTUP:-true}"
     ports:
       - "8000:8000"
     volumes:
@@ -41,7 +44,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    # Migrations and optional seeding run in the image entrypoint.
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   frontend:
     build:
