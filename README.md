@@ -58,6 +58,26 @@ This deletes everything in the local database:
 docker compose down -v && docker compose up --build
 ```
 
+## Hosting
+
+The API reads `DATABASE_URL`. Managed hosts inject a driverless URL such as
+`postgresql://user:pass@host/db`, and SQLAlchemy reads a driverless PostgreSQL
+URL as psycopg2, which this project does not install: it uses psycopg 3. The
+scheme is therefore rewritten to `postgresql+psycopg://` on startup, so a
+host-supplied URL works unchanged. The legacy `postgres://` form is handled the
+same way, and any URL that already names a driver is left alone.
+
+Two things a host needs beyond the database:
+
+- **outbound internet**, for address lookups when institutions are created. Set
+  `APP_GEOCODING_ENABLED=false` if the host has no egress;
+- **`APP_CORS_ORIGINS`** set to the deployed frontend's origin, otherwise the
+  browser blocks every API call.
+
+The container listens on port 8000. If the host expects the service to bind a
+port it chooses, give it that port explicitly rather than relying on `$PORT`,
+which the image's start command does not read.
+
 ## After changing dependencies
 
 `node_modules` is a named volume, so it shadows whatever the image installed and

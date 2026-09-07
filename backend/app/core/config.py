@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +12,21 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DATABASE_URL", "APP_DATABASE_URL"),
     )
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+
+    @field_validator("database_url")
+    @classmethod
+    def use_installed_postgres_driver(cls, value: str) -> str:
+        """Name the driver this project actually ships.
+
+        Managed hosts inject a driverless URL (`postgresql://…`, or the legacy
+        Heroku-style `postgres://…`). SQLAlchemy reads a driverless PostgreSQL
+        URL as psycopg2, which is not installed here: the project uses psycopg 3.
+        Naming the driver keeps a host-supplied URL working unchanged.
+        """
+        for prefix in ("postgresql://", "postgres://"):
+            if value.startswith(prefix):
+                return f"postgresql+psycopg://{value[len(prefix):]}"
+        return value
 
     # Turning an institution address into map coordinates calls an external
     # service, so it can be switched off for offline or air-gapped runs.
