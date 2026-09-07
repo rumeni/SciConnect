@@ -26,6 +26,7 @@ from app.modules.catalog.schemas import (
     CatalogItem,
     CatalogTypeCreate,
     FilterOptions,
+    GeocodeResult,
     InstitutionAnalysisCreate,
     InstitutionAnalysisItem,
     InstitutionCreate,
@@ -33,6 +34,7 @@ from app.modules.catalog.schemas import (
     InstitutionDetailView,
     InstitutionInstrumentCreate,
     InstitutionInstrumentItem,
+    InstitutionMapPoint,
     InstitutionSummary,
     InstrumentDetailView,
     InstrumentTypeDetailView,
@@ -117,6 +119,37 @@ def capability_search(
 def capability_filter_options(db: DbSession, filters: Filters) -> FilterOptions:
     """The values each filter can still usefully offer, given the other choices."""
     return filter_options(db, filters)
+
+
+@router.get("/map/institutions", response_model=list[InstitutionMapPoint])
+def institutions_on_map(db: DbSession) -> list[Institution]:
+    """Every active institution that has a position, for drawing on a map."""
+    query = (
+        select(Institution)
+        .where(
+            Institution.status == "active",
+            Institution.latitude.is_not(None),
+            Institution.longitude.is_not(None),
+        )
+        .order_by(Institution.name)
+    )
+    return list(db.scalars(query))
+
+
+@router.get("/geocode", response_model=GeocodeResult)
+def geocode(
+    geocoder: AddressLookup,
+    q: Annotated[str, Query(min_length=3, max_length=300)],
+) -> GeocodeResult:
+    """Place a written address, so a visitor can search around somewhere they name."""
+    located = geocoder(q)
+    if located is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"Could not find a location for '{q}'"
+        )
+    return GeocodeResult(
+        latitude=located.latitude, longitude=located.longitude, label=located.label
+    )
 
 
 @router.get("/catalog/instrument-types", response_model=list[CatalogItem])

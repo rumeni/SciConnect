@@ -106,6 +106,30 @@ export type SearchResponse = {
   offset: number;
 };
 
+export type InstitutionMapPoint = {
+  id: number;
+  name: string;
+  address: string | null;
+  city: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type GeocodeResult = {
+  latitude: number;
+  longitude: number;
+  label: string;
+};
+
+/** Where the visitor said they are, and how they told us. */
+export type ViewerLocation = {
+  latitude: number;
+  longitude: number;
+  label: string;
+  source: "device" | "address";
+};
+
 export type FilterOption = {
   id: number;
   label: string;

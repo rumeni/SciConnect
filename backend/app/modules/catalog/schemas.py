@@ -67,6 +67,24 @@ class CapabilitySearchResponse(BaseModel):
     offset: int
 
 
+class InstitutionMapPoint(ORMModel):
+    """An institution that can be drawn on a map."""
+
+    id: int
+    name: str
+    address: str | None
+    city: str
+    country: str
+    latitude: float
+    longitude: float
+
+
+class GeocodeResult(BaseModel):
+    latitude: float
+    longitude: float
+    label: str
+
+
 class FilterOption(BaseModel):
     id: int
     label: str

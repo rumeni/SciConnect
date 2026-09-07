@@ -1,9 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, loadCatalogs } from "./api";
+import { Brand } from "./Logo";
 import { DetailPanel } from "./DetailPanel";
+import { LocationPrompt } from "./LocationPrompt";
 import { ManageView } from "./ManageView";
+import { NearbyView } from "./NearbyView";
 import { emptyFilters, SearchView, type Filters } from "./SearchView";
-import type { Catalogs, EntityRef, FilterOptions, SearchResponse } from "./types";
+import {
+  forgetLocation,
+  hasBeenAsked,
+  readStoredLocation,
+  rememberAsked,
+  storeLocation,
+} from "./viewerLocation";
+import type {
+  Catalogs,
+  EntityRef,
+  FilterOptions,
+  InstitutionMapPoint,
+  SearchResponse,
+  ViewerLocation,
+} from "./types";
 
 const noOptions: FilterOptions = {
   institutions: [],
@@ -23,7 +40,7 @@ const emptyCatalogs: Catalogs = {
   institutionAnalyses: [],
 };
 
-type View = "search" | "contribute";
+type View = "search" | "nearby" | "contribute";
 
 export default function App() {
   const [view, setView] = useState<View>("search");
@@ -36,6 +53,9 @@ export default function App() {
   // Opening a related record pushes onto the stack, so "Back" returns to the
   // record it was reached from.
   const [detailStack, setDetailStack] = useState<EntityRef[]>([]);
+  const [mapPoints, setMapPoints] = useState<InstitutionMapPoint[]>([]);
+  const [location, setLocation] = useState<ViewerLocation | null>(readStoredLocation);
+  const [askingLocation, setAskingLocation] = useState(false);
 
   const runSearch = useCallback(async (nextFilters: Filters) => {
     setLoading(true);
@@ -74,7 +94,9 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      setCatalogs(await loadCatalogs());
+      const [loaded, points] = await Promise.all([loadCatalogs(), api.mapInstitutions()]);
+      setCatalogs(loaded);
+      setMapPoints(points);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "API is unavailable");
       setLoading(false);
@@ -98,20 +120,36 @@ export default function App() {
     void runSearch(emptyFilters);
   };
 
+  // Offered once per browser, and never on its own initiative afterwards.
+  useEffect(() => {
+    if (!readStoredLocation() && !hasBeenAsked()) setAskingLocation(true);
+  }, []);
+
+  const acceptLocation = (shared: ViewerLocation) => {
+    setLocation(shared);
+    storeLocation(shared);
+    rememberAsked();
+    setAskingLocation(false);
+    setView("nearby");
+  };
+
+  const declineLocation = () => {
+    rememberAsked();
+    setAskingLocation(false);
+  };
+
+  const forget = () => {
+    setLocation(null);
+    forgetLocation();
+  };
+
   const openDetail = (ref: EntityRef) => setDetailStack((current) => [...current, ref]);
   const closeDetail = useCallback(() => setDetailStack([]), []);
   const backDetail = () => setDetailStack((current) => current.slice(0, -1));
 
   return (
     <main>
-      <header className="hero">
-        <p className="eyebrow">Scientific capability discovery</p>
-        <h1>Find the institution that can do the work.</h1>
-        <p className="intro">
-          Combine an institution, instrument, analysis, target organism and researcher. Results
-          only include capabilities whose relationships are explicitly confirmed.
-        </p>
-      </header>
+      <Brand />
 
       <nav className="tabs" aria-label="Views">
         <button
@@ -120,6 +158,13 @@ export default function App() {
           onClick={() => setView("search")}
         >
           Search
+        </button>
+        <button
+          type="button"
+          className={view === "nearby" ? "tab active" : "tab"}
+          onClick={() => setView("nearby")}
+        >
+          Near me
         </button>
         <button
           type="button"
@@ -142,8 +187,20 @@ export default function App() {
           loading={loading}
           error={error}
         />
+      ) : view === "nearby" ? (
+        <NearbyView
+          location={location}
+          institutions={mapPoints}
+          onOpen={openDetail}
+          onAsk={() => setAskingLocation(true)}
+          onForget={forget}
+        />
       ) : (
         <ManageView catalogs={catalogs} onChanged={() => void refresh()} />
+      )}
+
+      {askingLocation && (
+        <LocationPrompt onShare={acceptLocation} onDismiss={declineLocation} />
       )}
 
       <DetailPanel

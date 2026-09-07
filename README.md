@@ -90,6 +90,18 @@ for example, narrows the institution list to the one that employs them and the
 target organism list to the organisms their analyses detect. A filter with
 nothing left to offer is disabled rather than silently empty.
 
+## Look and feel
+
+The interface follows the SciConnect stand branding: a deep navy ground with a
+lit centre, connection blue for accents, and the psi mark beside the wordmark.
+
+Every colour is a CSS custom property in `frontend/src/styles.css`, so the light
+variant under `prefers-color-scheme: light` only restates the tokens. The mark
+in `frontend/src/Logo.tsx` is drawn inline rather than shipped as two image
+files: the psi paints itself with `currentColor`, so it is white on the dark
+theme and navy on the light one, while the three heads always take the accent
+blue.
+
 ## Exploring the results
 
 Every name shown in a search result opens a detail view: the institution, each
@@ -121,6 +133,22 @@ service in earnest, or point `APP_GEOCODING_URL` at your own instance.
 
 Seeded institutions carry invented street addresses and hardcoded coordinates,
 so seeding never needs the network.
+
+## Institutions near you
+
+The **Near me** tab draws the catalogue on a map around a location the visitor
+chooses, nearest first. On a first visit the application asks once whether to
+share a location, and offers two ways to answer:
+
+- **the device location**, requested through the browser's own permission
+  prompt. It stays in the browser: distances are computed locally from the map
+  list, and the position is never sent to the API;
+- **a typed address**, which is sent to the API to be looked up, exactly as an
+  institution address is.
+
+Declining is remembered, so the question is asked once and not repeated; the
+tab keeps offering to opt in. A shared location is kept in the browser's local
+storage so the view survives a reload, and `Forget my location` clears it.
 
 ## Adding data
 

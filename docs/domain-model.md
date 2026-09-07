@@ -189,6 +189,26 @@ exists. A missing record answers `404`.
 The institution view also returns its coordinates when it has them, which the
 web application renders as a zoomable map.
 
+## Finding institutions near a visitor
+
+Two endpoints serve the "near me" view:
+
+```text
+GET /api/v1/map/institutions
+GET /api/v1/geocode?q=<address>
+```
+
+The first lists active institutions that have a position. The second places a
+written address, so a visitor can look around somewhere they name; it answers
+`404` when the address cannot be found.
+
+A visitor's position is never stored and never required. Distances are computed
+in the browser from the map list, so a position read from the device stays on
+the device. Only an address the visitor chooses to type reaches the server, and
+only to be looked up. `GET /geocode` is an unauthenticated passthrough to the
+geocoding service, so it needs a rate limit before public deployment, alongside
+the authentication the write endpoints already need.
+
 Unlike public search, a detail view does not hide archived or unavailable
 records. It returns the status instead, so the caller can show it. This keeps
 the view honest about what exists, and is acceptable only because these

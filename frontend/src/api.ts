@@ -6,7 +6,9 @@ import type {
   EntityKind,
   EntityRef,
   FilterOptions,
+  GeocodeResult,
   Institution,
+  InstitutionMapPoint,
   InstitutionAnalysis,
   InstitutionInstrument,
   Microorganism,
@@ -95,6 +97,11 @@ export const api = {
     post<unknown>(`/api/v1/institution-analyses/${analysisId}/targets`, payload),
   linkResearcher: (analysisId: number, payload: unknown) =>
     post<unknown>(`/api/v1/institution-analyses/${analysisId}/researchers`, payload),
+
+  mapInstitutions: () => request<InstitutionMapPoint[]>("/api/v1/map/institutions"),
+
+  geocode: (query: string) =>
+    request<GeocodeResult>(`/api/v1/geocode?q=${encodeURIComponent(query)}`),
 
   detail: async (ref: EntityRef): Promise<EntityDetail> => {
     const data = await request<never>(`/api/v1${DETAIL_PATHS[ref.kind]}/${ref.id}`);
