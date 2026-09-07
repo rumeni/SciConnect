@@ -53,6 +53,9 @@ services:
   frontend:
     build:
       context: ./frontend
+      # Local development runs the Vite dev server; the default stage of this
+      # Dockerfile is the built bundle used for hosting.
+      target: development
     environment:
       VITE_API_URL: http://localhost:8000
     ports:

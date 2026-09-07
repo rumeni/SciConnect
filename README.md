@@ -107,6 +107,29 @@ The container listens on port 8000. If the host expects the service to bind a
 port it chooses, give it that port explicitly rather than relying on `$PORT`,
 which the image's start command does not read.
 
+### Deploying the frontend
+
+`frontend/Dockerfile` has two stages. Compose builds `--target development`,
+which runs the Vite dev server with hot reload. The default stage builds the
+bundle and serves it with nginx, and that is what a host builds. The dev server
+must never be the hosted entrypoint: it serves unminified sources and rejects
+requests whose `Host` header it does not recognise, which is every request
+behind a hosting provider's domain.
+
+The hosted container needs one environment variable:
+
+```
+VITE_API_URL=https://your-api.onrender.com
+```
+
+It is applied at container start rather than baked into the bundle, so pointing
+the frontend at a different API is a restart, not a rebuild. A trailing slash is
+trimmed. The container listens on `$PORT` when the host sets one, and on 8080
+otherwise.
+
+Set `APP_CORS_ORIGINS` on the API service to this frontend's origin at the same
+time, or the browser blocks every call.
+
 ## After changing dependencies
 
 `node_modules` is a named volume, so it shadows whatever the image installed and

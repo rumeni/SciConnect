@@ -16,7 +16,19 @@ import type {
   SearchResponse,
 } from "./types";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+declare global {
+  interface Window {
+    __SCICONNECT__?: { apiUrl?: string };
+  }
+}
+
+/**
+ * Where the API lives. The runtime value written by the container wins, so a
+ * deployed image can be pointed at a different API without being rebuilt; the
+ * build-time value serves local development.
+ */
+const API_URL =
+  window.__SCICONNECT__?.apiUrl || import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, init);

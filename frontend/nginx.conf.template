@@ -1,0 +1,33 @@
+# Served by the production image. `${PORT}` is substituted at container start
+# by the nginx image's own entrypoint, so the host can choose the port.
+server {
+    listen      ${PORT};
+    listen      [::]:${PORT};
+    server_name _;
+
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    gzip            on;
+    gzip_vary       on;
+    gzip_min_length 1024;
+    gzip_types      text/plain text/css application/javascript application/json image/svg+xml;
+
+    # Asset filenames carry a content hash, so they never need revalidating.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # The entry document and the runtime configuration change on every deploy.
+    location = /index.html {
+        add_header Cache-Control "no-store";
+    }
+    location = /config.js {
+        add_header Cache-Control "no-store";
+    }
+
+    # A single page application: anything unrecognised is still the app.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
