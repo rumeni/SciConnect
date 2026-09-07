@@ -58,6 +58,35 @@ This deletes everything in the local database:
 docker compose down -v && docker compose up --build
 ```
 
+## Health checks
+
+Two endpoints, answering different questions:
+
+```bash
+curl https://your-deployment/api/v1/health
+curl https://your-deployment/api/v1/health/database
+```
+
+`/health` is liveness: the process is answering. It deliberately never touches
+the database, so it stays cheap and does not fail during a database blip.
+
+`/health/database` is readiness. It runs a query and reports what it found:
+
+```json
+{"driver": "psycopg", "database": "ok", "migration": "20260906_05", "institutions": 5}
+```
+
+- `driver` — which PostgreSQL driver the URL resolved to. Anything other than
+  `psycopg` means the scheme was not rewritten;
+- `migration` — the applied Alembic revision, or `null` when the database is
+  reachable but has never been migrated;
+- `institutions` — how many rows the catalogue holds, so an empty database is
+  told apart from a broken one.
+
+An unreachable database answers `503` with the error type only. The full
+message stays in the service logs, because this endpoint is public and
+connection errors name hosts and users.
+
 ## Hosting
 
 The API reads `DATABASE_URL`. Managed hosts inject a driverless URL such as
