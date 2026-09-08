@@ -130,6 +130,34 @@ otherwise.
 Set `APP_CORS_ORIGINS` on the API service to this frontend's origin at the same
 time, or the browser blocks every call.
 
+## Removing data
+
+Open any record and each connected record beside it carries a `Remove` button,
+which asks what it is about to do before doing it. What "remove" means depends
+on the relationship:
+
+- a **connection** is severed and both records stay — an offering stops using an
+  instrument, detecting an organism, or being performed by a researcher;
+- an **owned record** is deleted, because its institution is part of the record
+  rather than a link. Removing a researcher or an instrument from an institution
+  deletes it, and the confirmation says so.
+
+The **Add & connect** tab can also take things apart.
+
+Selecting an analysis offering lists its current connections, each with a
+`Disconnect` button. Disconnecting removes only the relationship: the instrument
+is still owned, the organism still in the catalogue, the researcher still
+employed.
+
+`Delete a record` removes a record outright. A catalogue entry that something
+still depends on is refused, saying how many records hold it. Deleting an
+institution takes its instruments, offerings and researchers with it, so it is
+refused first and then offers to cascade, reporting what went.
+
+A researcher's institution is part of the researcher rather than a connection,
+so someone who has left is removed by deleting them, or by giving them a status
+other than `active` to keep the record of their past work.
+
 ## After changing dependencies
 
 `node_modules` is a named volume, so it shadows whatever the image installed and
@@ -173,6 +201,16 @@ in `frontend/src/Logo.tsx` is drawn inline rather than shipped as two image
 files: the psi paints itself with `currentColor`, so it is white on the dark
 theme and navy on the light one, while the three heads always take the accent
 blue.
+
+## Searching by name
+
+A search bar sits under the navigation on every tab. Type two or more
+characters and it lists every record whose name contains them — institutions,
+instrument and analysis types, individual instruments and offerings, target
+organisms and researchers — each labelled with its kind and enough context to
+tell near-identical names apart. Choosing one opens its detail view.
+
+The list is keyboard navigable: arrows move, Enter opens, Escape closes.
 
 ## Exploring the results
 

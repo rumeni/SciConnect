@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.modules.catalog import details, service
+from app.modules.catalog import details, lookup, service
 from app.modules.catalog.geocoding import Geocoder, default_geocoder
 from app.modules.catalog.models import (
     AnalysisType,
@@ -25,6 +25,9 @@ from app.modules.catalog.schemas import (
     CapabilitySearchResponse,
     CatalogItem,
     CatalogTypeCreate,
+    DeleteAck,
+    DisconnectAck,
+    EntitySearchResponse,
     FilterOptions,
     GeocodeResult,
     InstitutionAnalysisCreate,
@@ -119,6 +122,16 @@ def capability_search(
 def capability_filter_options(db: DbSession, filters: Filters) -> FilterOptions:
     """The values each filter can still usefully offer, given the other choices."""
     return filter_options(db, filters)
+
+
+@router.get("/search", response_model=EntitySearchResponse)
+def entity_search(
+    db: DbSession,
+    q: Annotated[str, Query(min_length=1, max_length=100)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> EntitySearchResponse:
+    """Every record whose own name contains `q`, for jumping straight to it."""
+    return lookup.find_entities(db, q, limit=limit)
 
 
 @router.get("/map/institutions", response_model=list[InstitutionMapPoint])
@@ -374,3 +387,116 @@ def link_researcher(
         linked_id=payload.researcher_id,
         detail=f"Researcher linked as {payload.role}",
     )
+
+
+# --- Removal ----------------------------------------------------------------
+# Disconnecting drops a stated relationship and leaves both records standing.
+# Deleting drops a record: one still depended on answers 409 saying what holds
+# it, and an institution only takes its contents with it when asked to cascade.
+
+
+def _deleted(kind: str, record_id: int, label: str, also: dict[str, int]) -> DeleteAck:
+    carried = (
+        " Also removed: " + ", ".join(f"{count} {name}" for name, count in also.items())
+        if also
+        else ""
+    )
+    return DeleteAck(
+        kind=kind,
+        id=record_id,
+        label=label,
+        detail=f"Deleted {label}.{carried}",
+        also_removed=also,
+    )
+
+
+@router.delete("/institution-analyses/{analysis_id}/instruments/{instrument_id}")
+def unlink_instrument(
+    db: DbSession, analysis_id: int, instrument_id: int
+) -> DisconnectAck:
+    _commit(db, lambda: service.remove_analysis_instrument(db, analysis_id, instrument_id))
+    return DisconnectAck(
+        institution_analysis_id=analysis_id,
+        unlinked_id=instrument_id,
+        detail="This analysis no longer uses that instrument",
+    )
+
+
+@router.delete("/institution-analyses/{analysis_id}/targets/{microorganism_id}")
+def unlink_target(
+    db: DbSession, analysis_id: int, microorganism_id: int
+) -> DisconnectAck:
+    _commit(db, lambda: service.remove_analysis_target(db, analysis_id, microorganism_id))
+    return DisconnectAck(
+        institution_analysis_id=analysis_id,
+        unlinked_id=microorganism_id,
+        detail="This analysis no longer targets that organism",
+    )
+
+
+@router.delete("/institution-analyses/{analysis_id}/researchers/{researcher_id}")
+def unlink_researcher(
+    db: DbSession, analysis_id: int, researcher_id: int
+) -> DisconnectAck:
+    _commit(db, lambda: service.remove_analysis_researcher(db, analysis_id, researcher_id))
+    return DisconnectAck(
+        institution_analysis_id=analysis_id,
+        unlinked_id=researcher_id,
+        detail="That researcher no longer performs this analysis",
+    )
+
+
+@router.delete("/catalog/institutions/{institution_id}", response_model=DeleteAck)
+def delete_institution(
+    db: DbSession,
+    institution_id: int,
+    cascade: Annotated[bool, Query()] = False,
+) -> DeleteAck:
+    """Deleting an institution takes everything it owns, so it must be asked for."""
+    name, carried = _commit(
+        db, lambda: service.delete_institution(db, institution_id, cascade=cascade)
+    )
+    return _deleted("institution", institution_id, name, carried)
+
+
+@router.delete("/catalog/instrument-types/{type_id}", response_model=DeleteAck)
+def delete_instrument_type(db: DbSession, type_id: int) -> DeleteAck:
+    name = _commit(db, lambda: service.delete_instrument_type(db, type_id))
+    return _deleted("instrument-type", type_id, name, {})
+
+
+@router.delete("/catalog/analysis-types/{type_id}", response_model=DeleteAck)
+def delete_analysis_type(db: DbSession, type_id: int) -> DeleteAck:
+    name = _commit(db, lambda: service.delete_analysis_type(db, type_id))
+    return _deleted("analysis-type", type_id, name, {})
+
+
+@router.delete("/catalog/microorganisms/{microorganism_id}", response_model=DeleteAck)
+def delete_microorganism(db: DbSession, microorganism_id: int) -> DeleteAck:
+    name = _commit(db, lambda: service.delete_microorganism(db, microorganism_id))
+    return _deleted("microorganism", microorganism_id, name, {})
+
+
+@router.delete("/catalog/researchers/{researcher_id}", response_model=DeleteAck)
+def delete_researcher(db: DbSession, researcher_id: int) -> DeleteAck:
+    """A researcher's institution is their own field, so leaving means being deleted."""
+    name, carried = _commit(db, lambda: service.delete_researcher(db, researcher_id))
+    return _deleted("researcher", researcher_id, name, carried)
+
+
+@router.delete(
+    "/catalog/institution-instruments/{instrument_id}", response_model=DeleteAck
+)
+def delete_institution_instrument(db: DbSession, instrument_id: int) -> DeleteAck:
+    name, carried = _commit(
+        db, lambda: service.delete_institution_instrument(db, instrument_id)
+    )
+    return _deleted("instrument", instrument_id, name, carried)
+
+
+@router.delete("/catalog/institution-analyses/{analysis_id}", response_model=DeleteAck)
+def delete_institution_analysis(db: DbSession, analysis_id: int) -> DeleteAck:
+    name, carried = _commit(
+        db, lambda: service.delete_institution_analysis(db, analysis_id)
+    )
+    return _deleted("analysis", analysis_id, name, carried)

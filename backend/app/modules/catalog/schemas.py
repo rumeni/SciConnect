@@ -85,6 +85,37 @@ class GeocodeResult(BaseModel):
     label: str
 
 
+class DeleteAck(BaseModel):
+    """What a removal actually removed."""
+
+    kind: str
+    id: int
+    label: str
+    detail: str
+    also_removed: dict[str, int] = Field(default_factory=dict)
+
+
+class DisconnectAck(BaseModel):
+    institution_analysis_id: int
+    unlinked_id: int
+    detail: str
+
+
+class EntityMatch(BaseModel):
+    """One record whose name contains what was typed."""
+
+    kind: str
+    id: int
+    label: str
+    note: str | None
+
+
+class EntitySearchResponse(BaseModel):
+    query: str
+    items: list[EntityMatch]
+    truncated: bool
+
+
 class FilterOption(BaseModel):
     id: int
     label: str

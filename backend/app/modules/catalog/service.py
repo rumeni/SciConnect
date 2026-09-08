@@ -554,3 +554,179 @@ def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
             ]
         ),
     )
+
+
+# --- Removal ----------------------------------------------------------------
+# Two different things, with different rules.
+#
+# Disconnecting removes a stated relationship and leaves both records standing:
+# an analysis stops using an instrument, stops targeting an organism, or stops
+# being performed by a researcher.
+#
+# Deleting removes a record. A record that others depend on cannot simply go:
+# a catalog entry still in use is refused, and an institution takes its
+# instruments, offerings and researchers with it, so that is refused too unless
+# the caller says to cascade.
+#
+# Note that a researcher's institution is not a connection but the researcher's
+# own field, so a researcher who has left is deleted or marked inactive rather
+# than disconnected.
+
+
+def _in_use(db: Session, statement) -> int:
+    return db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+
+
+def remove_analysis_instrument(
+    db: Session, analysis_id: int, instrument_id: int
+) -> InstitutionAnalysisInstrument:
+    link = db.get(InstitutionAnalysisInstrument, (analysis_id, instrument_id))
+    if link is None:
+        raise NotFoundError(
+            f"Analysis {analysis_id} does not use instrument {instrument_id}"
+        )
+    db.delete(link)
+    db.flush()
+    return link
+
+
+def remove_analysis_target(
+    db: Session, analysis_id: int, microorganism_id: int
+) -> InstitutionAnalysisTarget:
+    link = db.get(InstitutionAnalysisTarget, (analysis_id, microorganism_id))
+    if link is None:
+        raise NotFoundError(
+            f"Analysis {analysis_id} does not target organism {microorganism_id}"
+        )
+    db.delete(link)
+    db.flush()
+    return link
+
+
+def remove_analysis_researcher(
+    db: Session, analysis_id: int, researcher_id: int
+) -> InstitutionAnalysisResearcher:
+    link = db.get(InstitutionAnalysisResearcher, (analysis_id, researcher_id))
+    if link is None:
+        raise NotFoundError(
+            f"Analysis {analysis_id} is not performed by researcher {researcher_id}"
+        )
+    db.delete(link)
+    db.flush()
+    return link
+
+
+def delete_institution(
+    db: Session, institution_id: int, *, cascade: bool = False
+) -> tuple[str, dict[str, int]]:
+    institution = _get_or_404(db, Institution, institution_id, "Institution")
+    held = {
+        "instruments": len(institution.instruments),
+        "analyses": len(institution.analyses),
+        "researchers": len(institution.researchers),
+    }
+    carried = {name: count for name, count in held.items() if count}
+
+    if carried and not cascade:
+        listed = ", ".join(f"{count} {name}" for name, count in carried.items())
+        raise ConflictError(
+            f"'{institution.name}' still holds {listed}. "
+            "Remove them first, or ask to cascade to delete them with it."
+        )
+
+    name = institution.name
+    db.delete(institution)
+    db.flush()
+    return name, carried
+
+
+def delete_instrument_type(db: Session, type_id: int) -> str:
+    record = _get_or_404(db, InstrumentType, type_id, "Instrument type")
+    used = _in_use(
+        db,
+        select(InstitutionInstrument.id).where(
+            InstitutionInstrument.instrument_type_id == type_id
+        ),
+    )
+    if used:
+        raise ConflictError(
+            f"'{record.name}' is still the type of {used} instrument(s). "
+            "Delete those instruments first."
+        )
+    name = record.name
+    db.delete(record)
+    db.flush()
+    return name
+
+
+def delete_analysis_type(db: Session, type_id: int) -> str:
+    record = _get_or_404(db, AnalysisType, type_id, "Analysis type")
+    used = _in_use(
+        db,
+        select(InstitutionAnalysis.id).where(
+            InstitutionAnalysis.analysis_type_id == type_id
+        ),
+    )
+    if used:
+        raise ConflictError(
+            f"'{record.name}' is still offered by {used} institution(s). "
+            "Delete those offerings first."
+        )
+    name = record.name
+    db.delete(record)
+    db.flush()
+    return name
+
+
+def delete_microorganism(db: Session, microorganism_id: int) -> str:
+    record = _get_or_404(db, Microorganism, microorganism_id, "Microorganism")
+    used = _in_use(
+        db,
+        select(InstitutionAnalysisTarget.institution_analysis_id).where(
+            InstitutionAnalysisTarget.microorganism_id == microorganism_id
+        ),
+    )
+    if used:
+        raise ConflictError(
+            f"'{record.scientific_name}' is still targeted by {used} analysis offering(s). "
+            "Disconnect those first."
+        )
+    name = record.scientific_name
+    db.delete(record)
+    db.flush()
+    return name
+
+
+def delete_researcher(db: Session, researcher_id: int) -> tuple[str, dict[str, int]]:
+    record = _get_or_404(db, Researcher, researcher_id, "Researcher")
+    carried = {"analysis links": len(record.analysis_links)}
+    name = record.full_name
+    db.delete(record)
+    db.flush()
+    return name, {k: v for k, v in carried.items() if v}
+
+
+def delete_institution_instrument(
+    db: Session, instrument_id: int
+) -> tuple[str, dict[str, int]]:
+    record = _get_or_404(db, InstitutionInstrument, instrument_id, "Institution instrument")
+    carried = {"analysis links": len(record.analysis_links)}
+    name = record.display_name or record.instrument_type.name
+    db.delete(record)
+    db.flush()
+    return name, {k: v for k, v in carried.items() if v}
+
+
+def delete_institution_analysis(
+    db: Session, analysis_id: int
+) -> tuple[str, dict[str, int]]:
+    record = _get_or_404(db, InstitutionAnalysis, analysis_id, "Institution analysis")
+    carried = {
+        "instrument links": len(record.instrument_links),
+        "target links": len(record.target_links),
+        "researcher links": len(record.researcher_links),
+    }
+    name = record.public_name or record.analysis_type.name
+    db.delete(record)
+    db.flush()
+    return name, {k: v for k, v in carried.items() if v}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "./api";
 import { CreateForm, Input, Select } from "./form";
+import { CurrentConnections, RemoveRecordForm } from "./Removal";
 import type { Catalogs, InstitutionAnalysis } from "./types";
 
 const blank = (value: string) => (value.trim() === "" ? null : value.trim());
@@ -56,6 +57,17 @@ export function ManageView({
           relationship is stated here. Only records from the same institution can be connected.
         </p>
         <ConnectionForms catalogs={catalogs} onChanged={onChanged} />
+      </section>
+
+      <section>
+        <h2>Removing</h2>
+        <p className="section-hint">
+          Disconnecting ends a relationship and keeps both records. Deleting removes a
+          record, and is refused while anything still depends on it.
+        </p>
+        <div className="form-stack">
+          <RemoveRecordForm catalogs={catalogs} onChanged={onChanged} />
+        </div>
       </section>
     </div>
   );
@@ -503,6 +515,7 @@ function ConnectionForms({
             }
             onChanged={onChanged}
           />
+          <CurrentConnections analysisId={analysis.id} onChanged={onChanged} />
         </div>
       )}
     </>

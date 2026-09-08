@@ -10,12 +10,27 @@ import type {
   PersonRef,
 } from "./types";
 
+/**
+ * What the Remove button beside a row does.
+ *
+ * Some rows are connections, which can simply be severed. Others are records the
+ * shown entity owns — an institution's researcher, for instance — and there the
+ * only way to remove it from the owner is to delete it, because the affiliation
+ * is a field of the record rather than a link. `detail` says which, so the
+ * confirmation never hides that a record is about to go.
+ */
+type Removal = {
+  detail: string;
+  run: () => Promise<unknown>;
+};
+
 /** One clickable related record inside a detail view. */
 type LinkItem = {
   ref: EntityRef;
   label: string;
   note?: string;
   badge?: string;
+  remove?: Removal;
 };
 
 /** A detail response flattened into something the panel can render directly. */
@@ -34,15 +49,19 @@ export function DetailPanel({
   onOpen,
   onBack,
   onClose,
+  onChanged,
 }: {
   stack: EntityRef[];
   onOpen: (ref: EntityRef) => void;
   onBack: () => void;
   onClose: () => void;
+  onChanged: () => void;
 }) {
   const current = stack[stack.length - 1];
   const [detail, setDetail] = useState<EntityDetail | null>(null);
   const [error, setError] = useState("");
+  // Bumped after a removal so the panel shows the record as it now stands.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     if (!current) return;
@@ -60,7 +79,7 @@ export function DetailPanel({
     return () => {
       active = false;
     };
-  }, [current?.kind, current?.id]);
+  }, [current?.kind, current?.id, version]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -143,7 +162,7 @@ export function DetailPanel({
                 ) : (
                   <ul className="link-list">
                     {section.items.map((item) => (
-                      <li key={`${item.ref.kind}-${item.ref.id}`}>
+                      <li key={`${item.ref.kind}-${item.ref.id}`} className="link-entry">
                         <button
                           type="button"
                           className="link-row"
@@ -153,6 +172,15 @@ export function DetailPanel({
                           {item.badge && <em className="role">{item.badge}</em>}
                           {item.note && <span className="link-note">{item.note}</span>}
                         </button>
+                        {item.remove && (
+                          <RowRemoval
+                            removal={item.remove}
+                            onDone={() => {
+                              setVersion((count) => count + 1);
+                              onChanged();
+                            }}
+                          />
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -166,28 +194,104 @@ export function DetailPanel({
   );
 }
 
+/** The Remove button beside a row, with its own confirmation. */
+function RowRemoval({ removal, onDone }: { removal: Removal; onDone: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const run = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await removal.run();
+      onDone();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not remove");
+      setBusy(false);
+      setConfirming(false);
+    }
+  };
+
+  if (!confirming) {
+    return (
+      <div className="row-removal">
+        <button type="button" className="danger" onClick={() => setConfirming(true)}>
+          Remove
+        </button>
+        {error && <p className="form-error">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="row-removal confirming">
+      <p className="removal-detail">{removal.detail}</p>
+      <div className="removal-actions">
+        <button type="button" className="danger" disabled={busy} onClick={() => void run()}>
+          {busy ? "Removing…" : "Yes, remove"}
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={() => setConfirming(false)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const instrumentLabel = (item: InstrumentRef) => item.display_name || item.type_name;
 const analysisLabel = (item: AnalysisRef) => item.public_name || item.type_name;
 
-const instrumentItem = (item: InstrumentRef): LinkItem => ({
+const instrumentItem = (item: InstrumentRef, remove?: Removal): LinkItem => ({
   ref: { kind: "instrument", id: item.id },
   label: instrumentLabel(item),
   badge: item.usage ?? undefined,
   note: [item.manufacturer, item.model].filter(Boolean).join(" ") || item.status,
+  remove,
 });
 
-const analysisItem = (item: AnalysisRef): LinkItem => ({
+const analysisItem = (item: AnalysisRef, remove?: Removal): LinkItem => ({
   ref: { kind: "analysis", id: item.id },
   label: analysisLabel(item),
   badge: item.role ?? item.usage ?? undefined,
   note: item.institution ? item.institution.name : item.availability,
+  remove,
 });
 
-const personItem = (item: PersonRef): LinkItem => ({
+const personItem = (item: PersonRef, remove?: Removal): LinkItem => ({
   ref: { kind: "researcher", id: item.id },
   label: item.full_name,
   badge: item.role ?? undefined,
   note: item.title ?? item.institution?.name ?? undefined,
+  remove,
+});
+
+/** Removing an owned record from its owner means deleting it. */
+const deletes = (ref: EntityRef, owner: string, what: string): Removal => ({
+  detail:
+    `Removes this ${what} from ${owner}. The record is deleted, ` +
+    "because it belongs to exactly one institution and cannot stand without it.",
+  run: () => api.removeEntity(ref),
+});
+
+const unlinksInstrument = (analysisId: number, instrumentId: number): Removal => ({
+  detail: "The offering stops using this instrument. Both records stay.",
+  run: () => api.unlinkInstrument(analysisId, instrumentId),
+});
+
+const unlinksTarget = (analysisId: number, microorganismId: number): Removal => ({
+  detail: "The offering stops detecting this organism. Both records stay.",
+  run: () => api.unlinkTarget(analysisId, microorganismId),
+});
+
+const unlinksResearcher = (analysisId: number, researcherId: number): Removal => ({
+  detail: "They stop performing this offering. Both records stay.",
+  run: () => api.unlinkResearcher(analysisId, researcherId),
 });
 
 const institutionItem = (item: InstitutionRef): LinkItem => ({
@@ -227,17 +331,32 @@ function describe(detail: EntityDetail): Content {
           {
             title: "Instruments",
             empty: "No instruments recorded.",
-            items: item.instruments.map(instrumentItem),
+            items: item.instruments.map((unit) =>
+              instrumentItem(
+                unit,
+                deletes({ kind: "instrument", id: unit.id }, item.name, "instrument"),
+              ),
+            ),
           },
           {
             title: "Analysis offerings",
             empty: "No analysis offerings recorded.",
-            items: item.analyses.map(analysisItem),
+            items: item.analyses.map((offering) =>
+              analysisItem(
+                offering,
+                deletes({ kind: "analysis", id: offering.id }, item.name, "offering"),
+              ),
+            ),
           },
           {
             title: "Researchers",
             empty: "No researchers recorded.",
-            items: item.researchers.map(personItem),
+            items: item.researchers.map((person) =>
+              personItem(
+                person,
+                deletes({ kind: "researcher", id: person.id }, item.name, "researcher"),
+              ),
+            ),
           },
         ],
       };
@@ -263,7 +382,9 @@ function describe(detail: EntityDetail): Content {
           {
             title: "Performs",
             empty: "Not linked to any analysis offering yet.",
-            items: item.analyses.map(analysisItem),
+            items: item.analyses.map((offering) =>
+              analysisItem(offering, unlinksResearcher(offering.id, item.id)),
+            ),
           },
         ],
       };
@@ -296,7 +417,9 @@ function describe(detail: EntityDetail): Content {
           {
             title: "Used by",
             empty: "Not linked to any analysis offering yet.",
-            items: item.analyses.map(analysisItem),
+            items: item.analyses.map((offering) =>
+              analysisItem(offering, unlinksInstrument(offering.id, item.id)),
+            ),
           },
         ],
       };
@@ -331,7 +454,9 @@ function describe(detail: EntityDetail): Content {
           {
             title: "Uses instruments",
             empty: "No instrument linked yet.",
-            items: item.instruments.map(instrumentItem),
+            items: item.instruments.map((unit) =>
+              instrumentItem(unit, unlinksInstrument(item.id, unit.id)),
+            ),
           },
           {
             title: "Target organisms",
@@ -340,12 +465,15 @@ function describe(detail: EntityDetail): Content {
               ref: { kind: "microorganism" as const, id: target.id },
               label: target.scientific_name,
               note: target.common_name ?? undefined,
+              remove: unlinksTarget(item.id, target.id),
             })),
           },
           {
             title: "Performed by",
             empty: "No researcher linked yet.",
-            items: item.researchers.map(personItem),
+            items: item.researchers.map((person) =>
+              personItem(person, unlinksResearcher(item.id, person.id)),
+            ),
           },
         ],
       };
@@ -361,7 +489,9 @@ function describe(detail: EntityDetail): Content {
           {
             title: "Detected by",
             empty: "No analysis offering targets this organism yet.",
-            items: item.analyses.map(analysisItem),
+            items: item.analyses.map((offering) =>
+              analysisItem(offering, unlinksTarget(offering.id, item.id)),
+            ),
           },
         ],
       };
@@ -382,7 +512,12 @@ function describe(detail: EntityDetail): Content {
           {
             title: "Individual units",
             empty: "No units recorded.",
-            items: item.instruments.map(instrumentItem),
+            items: item.instruments.map((unit) =>
+              instrumentItem(
+                unit,
+                deletes({ kind: "instrument", id: unit.id }, "its institution", "instrument"),
+              ),
+            ),
           },
         ],
       };
@@ -403,7 +538,12 @@ function describe(detail: EntityDetail): Content {
           {
             title: "Offerings",
             empty: "No offerings recorded.",
-            items: item.analyses.map(analysisItem),
+            items: item.analyses.map((offering) =>
+              analysisItem(
+                offering,
+                deletes({ kind: "analysis", id: offering.id }, "its institution", "offering"),
+              ),
+            ),
           },
         ],
       };

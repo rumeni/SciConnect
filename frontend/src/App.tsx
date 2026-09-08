@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, loadCatalogs } from "./api";
 import { Brand } from "./Logo";
 import { DetailPanel } from "./DetailPanel";
+import { EntitySearch } from "./EntitySearch";
 import { LocationPrompt } from "./LocationPrompt";
 import { ManageView } from "./ManageView";
 import { NearbyView } from "./NearbyView";
@@ -175,6 +176,8 @@ export default function App() {
         </button>
       </nav>
 
+      <EntitySearch onOpen={openDetail} />
+
       {view === "search" ? (
         <SearchView
           options={options}
@@ -208,6 +211,7 @@ export default function App() {
         onOpen={openDetail}
         onBack={backDetail}
         onClose={closeDetail}
+        onChanged={() => void refresh()}
       />
     </main>
   );

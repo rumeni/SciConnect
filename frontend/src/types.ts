@@ -106,6 +106,29 @@ export type SearchResponse = {
   offset: number;
 };
 
+/** What a removal actually removed. */
+export type DeleteAck = {
+  kind: string;
+  id: number;
+  label: string;
+  detail: string;
+  also_removed: Record<string, number>;
+};
+
+/** A record whose name contains what was typed into the search bar. */
+export type EntityMatch = {
+  kind: EntityKind;
+  id: number;
+  label: string;
+  note: string | null;
+};
+
+export type EntitySearchResponse = {
+  query: string;
+  items: EntityMatch[];
+  truncated: boolean;
+};
+
 export type InstitutionMapPoint = {
   id: number;
   name: string;

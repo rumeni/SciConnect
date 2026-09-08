@@ -99,6 +99,23 @@ institution analysis.
 Unavailable or archived capabilities are excluded from public results, and so
 are researchers who are not active.
 
+## Searching by name
+
+`GET /api/v1/search?q=<fragment>` answers with every record whose own name
+contains the fragment, case-insensitively, across all seven kinds a detail view
+can open. It is a navigation aid, not a capability search: it answers "what is
+called something like this".
+
+Each kind is matched on its own name only, so an analysis type and the offerings
+named after it stay separate entries rather than duplicating. Names that begin
+with the fragment, or whose words begin with it, are ranked above matches buried
+mid-word. LIKE's own wildcards are escaped, so a query of `%` matches nothing
+rather than everything.
+
+Like the detail views, the search does not hide archived or unavailable records;
+the note carries the status instead, because being unable to find a draft just
+created would be worse than seeing that it is a draft.
+
 ## Filter options
 
 `GET /api/v1/capabilities/filter-options` takes the same filters as the search
@@ -166,6 +183,52 @@ A write that references a missing record answers `404`, a duplicate identity or
 repeated link answers `409`, and a link that would cross institutions answers
 `400`. Nothing infers a relationship: an analysis becomes searchable through an
 instrument, organism or researcher only after the matching link is created.
+
+## Removing
+
+Two different operations, with different meanings.
+
+**Disconnecting** removes a stated relationship and leaves both records
+standing:
+
+```text
+DELETE /api/v1/institution-analyses/{id}/instruments/{instrument_id}
+DELETE /api/v1/institution-analyses/{id}/targets/{microorganism_id}
+DELETE /api/v1/institution-analyses/{id}/researchers/{researcher_id}
+```
+
+The instrument is still owned and the researcher still employed; only the
+statement that they belong together goes, and with it the capability's
+searchability through that link. A link that was never made answers `404`.
+
+**Deleting** removes a record:
+
+```text
+DELETE /api/v1/catalog/institutions/{id}?cascade=false
+DELETE /api/v1/catalog/instrument-types/{id}
+DELETE /api/v1/catalog/analysis-types/{id}
+DELETE /api/v1/catalog/microorganisms/{id}
+DELETE /api/v1/catalog/researchers/{id}
+DELETE /api/v1/catalog/institution-instruments/{id}
+DELETE /api/v1/catalog/institution-analyses/{id}
+```
+
+A catalog concept still in use is refused with `409` naming how many records
+depend on it, matching the `RESTRICT` foreign keys: an instrument type with
+units, an analysis type with offerings, an organism still targeted.
+
+An institution owns its instruments, offerings and researchers, so deleting one
+takes them all. That is refused by default with a `409` listing what it holds,
+and only proceeds with `cascade=true`. The reply says what went with it.
+
+Deleting an instrument, offering or researcher removes that record's links, and
+nothing else: the types they referenced and the institution they belonged to are
+untouched.
+
+A researcher's institution is a field of the researcher, not a connection, so
+there is nothing to disconnect. A researcher who has left is either deleted, or
+given a status other than `active`, which already hides them from public search
+while keeping the record of what they worked on.
 
 ## Detail views
 
