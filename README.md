@@ -38,21 +38,33 @@ serving, so a first `up` against an empty volume already has something to
 search. Seeding is a no-op once the catalog holds any data, so restarts and
 rebuilds never touch what is already there.
 
-The seed creates five fictional Serbian institutions with eleven concrete
-instruments, seven researchers, ten institutional analysis offerings and six
-microorganism targets, all wired together with explicit capability links.
-Example domains and names use `example.org`; no seed record represents a real
-institution or person.
+The seed creates twelve fictional Serbian institutions — virology, analytical
+chemistry, molecular genetics, veterinary, environmental, food safety, clinical
+microbiology, plant protection, biomedical imaging, water microbiology, soil
+microbiology and pharmacy — with thirty instruments, twenty-two researchers,
+twenty-five analysis offerings, sixteen target organisms and ten instrument and
+analysis types, all wired together with explicit capability links. It
+deliberately leaves loose ends too: instruments nobody has linked to an
+offering, an organism nothing detects yet, and offerings with no targets.
 
-To start with an empty database instead, set `APP_SEED_ON_STARTUP=false` in
-`.env` (or the environment). The seed can always be run by hand:
+Example domains and names use `example.org`; no seed record represents a real
+institution or person, and the street addresses are invented.
+
+To load it by hand, or to reload it after changing the data:
 
 ```bash
-docker compose exec api python -m app.seed
+docker compose exec api python -m app.seed            # fill an empty catalogue
+docker compose exec api python -m app.seed --reset    # empty it first, then fill
 ```
 
-To get the demo data back after changing it, discard the volume and start over.
-This deletes everything in the local database:
+`--reset` deletes everything in the catalogue, including records added by hand,
+and loads the demo data again.
+
+To start with an empty database instead, set `APP_SEED_ON_STARTUP=false` in
+`.env` (or the environment).
+
+To get the demo data back after changing it, `python -m app.seed --reset` is
+enough; discarding the volume also works and additionally resets the schema:
 
 ```bash
 docker compose down -v && docker compose up --build
@@ -259,8 +271,9 @@ so seeding never needs the network.
 ## Institutions near you
 
 The **Near me** tab draws the catalogue on a map around a location the visitor
-chooses, nearest first. On a first visit the application asks once whether to
-share a location, and offers two ways to answer:
+chooses, nearest first. Opening the site asks nothing; the question comes the
+first time that tab is opened, because it is the only view that needs an answer.
+It offers two ways to reply:
 
 - **the device location**, requested through the browser's own permission
   prompt. It stays in the browser: distances are computed locally from the map

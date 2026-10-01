@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { LocationMap } from "./LocationMap";
+import { useDialog } from "./useDialog";
 import type {
   AnalysisRef,
   EntityDetail,
@@ -62,6 +63,8 @@ export function DetailPanel({
   const [error, setError] = useState("");
   // Bumped after a removal so the panel shows the record as it now stands.
   const [version, setVersion] = useState(0);
+  const panel = useRef<HTMLElement>(null);
+  useDialog(Boolean(current), panel);
 
   useEffect(() => {
     if (!current) return;
@@ -96,10 +99,12 @@ export function DetailPanel({
   return (
     <div className="detail-backdrop" onClick={onClose} role="presentation">
       <aside
+        ref={panel}
         className="detail-panel"
         role="dialog"
         aria-modal="true"
         aria-label={content?.title ?? "Details"}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="detail-bar">

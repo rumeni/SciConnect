@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { addBaseLayer, institutionMarker, viewerMarker } from "./mapLayer";
+import { addBaseLayer, institutionMarker, popupNode, viewerMarker } from "./mapLayer";
 import { formatDistance, type NearbyInstitution } from "./viewerLocation";
 import type { EntityRef, ViewerLocation } from "./types";
 
@@ -38,7 +38,7 @@ export function NearbyMap({
 
     const drawn: L.Layer[] = [];
     const here = viewerMarker(origin.latitude, origin.longitude)
-      .bindPopup(origin.label)
+      .bindPopup(popupNode(origin.label))
       .addTo(instance);
     drawn.push(here);
 

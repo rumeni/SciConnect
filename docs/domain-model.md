@@ -125,10 +125,18 @@ narrows the institution, instrument, analysis and organism lists to what that
 researcher reaches, while the researcher list itself stays complete so the
 choice can be changed.
 
+Instrument and researcher options follow the search's own rule. With an
+analysis or organism filter present, matching runs through an offering and the
+instrument must be linked to it, so the options come from those links; without
+one, matching is institution-wide and so are the options. Offering an
+institution's whole inventory in the first case proposed combinations the search
+could not satisfy.
+
 The options are harvested from real search results rather than from separate
 queries, which guarantees that any offered value returns at least one
-institution. That costs one search per category, which suits this catalog's
-size but would need reworking into aggregate queries for a large one.
+institution. That costs one search per category — 65 statements for the demo
+catalogue — which suits this size but wants reworking into aggregate queries
+before the catalogue grows.
 
 ## Important invariants
 

@@ -11,6 +11,7 @@ institution is stored without coordinates and simply has no map.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -63,20 +64,39 @@ def nominatim_geocoder(query: str) -> Location | None:
         logger.warning("Geocoding %r failed: %s", query, error)
         return None
 
-    if not matches:
-        logger.info("Geocoding %r found no match", query)
+    # The service answers with a list of matches, but an error reply is an object
+    # and a proxy may return something else entirely. Anything unexpected means
+    # "could not place it", never a failed write.
+    if not isinstance(matches, list) or not matches:
+        logger.info("Geocoding %r found no usable match", query)
         return None
 
     match = matches[0]
     try:
-        return Location(
-            latitude=float(match["lat"]),
-            longitude=float(match["lon"]),
-            label=match.get("display_name", query),
-        )
-    except (KeyError, TypeError, ValueError) as error:
+        latitude = float(match["lat"])
+        longitude = float(match["lon"])
+        label = str(match.get("display_name") or query)
+    except (KeyError, IndexError, TypeError, ValueError) as error:
         logger.warning("Geocoding %r returned an unusable match: %s", query, error)
         return None
+
+    if not _on_earth(latitude, longitude):
+        logger.warning(
+            "Geocoding %r returned an off-world position: %s, %s", query, latitude, longitude
+        )
+        return None
+
+    return Location(latitude=latitude, longitude=longitude, label=label)
+
+
+def _on_earth(latitude: float, longitude: float) -> bool:
+    """Coordinates the database will accept, and that mean something on a map."""
+    return (
+        math.isfinite(latitude)
+        and math.isfinite(longitude)
+        and -90 <= latitude <= 90
+        and -180 <= longitude <= 180
+    )
 
 
 def default_geocoder() -> Geocoder:

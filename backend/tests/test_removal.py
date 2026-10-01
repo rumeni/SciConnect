@@ -163,7 +163,7 @@ def test_a_catalog_type_still_in_use_is_refused(seeded: TestClient) -> None:
     response = seeded.delete(f"/api/v1/catalog/instrument-types/{type_id}")
 
     assert response.status_code == 409
-    assert "4 instrument(s)" in response.json()["detail"]
+    assert "8 instrument(s)" in response.json()["detail"]
     assert seeded.get(f"/api/v1/catalog/instrument-types/{type_id}").status_code == 200
 
 

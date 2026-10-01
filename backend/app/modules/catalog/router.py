@@ -1,7 +1,9 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -55,6 +57,8 @@ from app.modules.catalog.service import (
     search_capabilities,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/v1")
 DbSession = Annotated[Session, Depends(get_db)]
 # Injected so tests, and offline deployments, can swap the address lookup out.
@@ -62,16 +66,32 @@ AddressLookup = Annotated[Geocoder, Depends(default_geocoder)]
 
 
 def _commit(db: Session, work):
-    """Run a write, translating domain errors into HTTP responses."""
+    """Run a write, translating domain errors into HTTP responses.
+
+    The service checks for a clash before writing, but that check and the write
+    are not atomic, and not every constraint has one. A constraint the database
+    rejects is still the caller's conflict, not a server fault, so it is caught
+    here and the session rolled back to leave it usable.
+    """
     try:
         result = work()
+        db.commit()
     except service.NotFoundError as error:
+        db.rollback()
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
     except service.ConflictError as error:
+        db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     except service.DomainError as error:
+        db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error
-    db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        logger.info("Write rejected by a database constraint: %s", error)
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "That record conflicts with one that already exists.",
+        ) from error
     return result
 
 

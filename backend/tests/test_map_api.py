@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.geocoding import Location
-from app.seed import seed_catalog
+from app.seed import INSTITUTIONS, seed_catalog
 
 BELGRADE = Location(latitude=44.8125, longitude=20.4612, label="Belgrade, Serbia")
 
@@ -20,7 +20,7 @@ def test_the_map_lists_every_placed_institution(seeded: TestClient) -> None:
 
     assert response.status_code == 200
     points = response.json()
-    assert len(points) == 5
+    assert len(points) == len(INSTITUTIONS)
     assert all(point["latitude"] and point["longitude"] for point in points)
     first = next(p for p in points if p["name"] == "Institute of Virology")
     assert (first["latitude"], first["longitude"]) == (44.8069, 20.4744)
@@ -39,7 +39,7 @@ def test_an_institution_without_a_position_is_left_off_the_map(
     names = [point["name"] for point in seeded.get("/api/v1/map/institutions").json()]
 
     assert "Unplaced Institute" not in names
-    assert len(names) == 5
+    assert len(names) == len(INSTITUTIONS)
 
 
 def test_a_draft_institution_is_left_off_the_map(seeded: TestClient, use_geocoder) -> None:

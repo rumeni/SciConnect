@@ -1,5 +1,6 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { api } from "./api";
+import { useDialog } from "./useDialog";
 import { requestDeviceLocation, shortenPlaceName } from "./viewerLocation";
 import type { ViewerLocation } from "./types";
 
@@ -20,6 +21,8 @@ export function LocationPrompt({
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState<"device" | "address" | null>(null);
   const [error, setError] = useState("");
+  const dialog = useRef<HTMLDivElement>(null);
+  useDialog(true, dialog);
 
   const useDevice = async () => {
     setBusy("device");
@@ -55,10 +58,12 @@ export function LocationPrompt({
   return (
     <div className="detail-backdrop" onClick={onDismiss} role="presentation">
       <div
+        ref={dialog}
         className="prompt"
         role="dialog"
         aria-modal="true"
         aria-labelledby="location-prompt-title"
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <p className="eyebrow">Institutions near you</p>

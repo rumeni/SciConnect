@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api";
 import { Select } from "./form";
-import type { AnalysisDetailView, Catalogs, EntityKind } from "./types";
+import type { AnalysisDetailView, Catalogs, EntityKind, EntityRef } from "./types";
 
 /**
  * The connections an analysis offering currently states, each removable.
@@ -12,15 +12,18 @@ import type { AnalysisDetailView, Catalogs, EntityKind } from "./types";
  */
 export function CurrentConnections({
   analysisId,
+  version = 0,
   onChanged,
 }: {
   analysisId: number;
+  /** Raised by the caller when a connection was added elsewhere on the page. */
+  version?: number;
   onChanged: () => void;
 }) {
   const [detail, setDetail] = useState<AnalysisDetailView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -36,14 +39,14 @@ export function CurrentConnections({
     return () => {
       active = false;
     };
-  }, [analysisId, version]);
+  }, [analysisId, version, reloads]);
 
   const disconnect = async (key: string, run: () => Promise<unknown>) => {
     setBusy(key);
     setError("");
     try {
       await run();
-      setVersion((current) => current + 1);
+      setReloads((current) => current + 1);
       onChanged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not disconnect");
@@ -131,7 +134,14 @@ export function RemoveRecordForm({
   const [status, setStatus] = useState<{ kind: "ok" | "error"; message: string } | null>(
     null,
   );
-  const [needsCascade, setNeedsCascade] = useState(false);
+  /**
+   * The record a refusal was about, not whatever is selected now.
+   *
+   * The reply arrives after the request, by which time the selection may have
+   * moved on. Offering "delete everything it holds" against the current
+   * selection would cascade over a record nobody asked about.
+   */
+  const [cascade, setCascade] = useState<{ ref: EntityRef; label: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const institutionName = (institutionId: number) =>
@@ -169,33 +179,40 @@ export function RemoveRecordForm({
     })),
   };
 
+  const options = kind ? choices[kind] : [];
+
   const reset = () => {
     setId("");
     setConfirming(false);
-    setNeedsCascade(false);
+    setCascade(null);
   };
 
-  const run = async (cascade: boolean) => {
-    if (!kind || !id) return;
+  /** Delete one named record. The target is fixed when the request is made. */
+  const run = async (target: EntityRef, label: string, withContents: boolean) => {
     setBusy(true);
     setStatus(null);
     try {
-      const answer = await api.removeEntity({ kind, id: Number(id) }, cascade);
+      const answer = await api.removeEntity(target, withContents);
       setStatus({ kind: "ok", message: answer.detail });
       reset();
       onChanged();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not delete";
       setStatus({ kind: "error", message });
-      // A held institution is refused until the caller asks to take its contents.
-      setNeedsCascade(reason instanceof ApiError && reason.status === 409 && kind === "institution");
+      const held =
+        reason instanceof ApiError &&
+        reason.status === 409 &&
+        target.kind === "institution";
+      setCascade(held ? { ref: target, label } : null);
       setConfirming(false);
     } finally {
       setBusy(false);
     }
   };
 
-  const options = kind ? choices[kind] : [];
+  const selected = options.find((item) => String(item.id) === id);
+  const target: EntityRef | null = kind && id ? { kind, id: Number(id) } : null;
+
 
   return (
     <div className="card-form">
@@ -210,6 +227,7 @@ export function RemoveRecordForm({
         <Select
           label="Kind"
           value={kind}
+          disabled={busy}
           onChange={(value) => {
             setKind(value as EntityKind | "");
             reset();
@@ -228,10 +246,11 @@ export function RemoveRecordForm({
         <Select
           label="Record"
           value={id}
+          disabled={busy}
           onChange={(value) => {
             setId(value);
             setConfirming(false);
-            setNeedsCascade(false);
+            setCascade(null);
           }}
           placeholder={kind ? "Select a record" : "Choose a kind first"}
         >
@@ -248,11 +267,11 @@ export function RemoveRecordForm({
           <button
             type="button"
             className="danger"
-            disabled={!kind || !id || busy}
+            disabled={!target || busy}
             onClick={() => {
               setConfirming(true);
               setStatus(null);
-              setNeedsCascade(false);
+              setCascade(null);
             }}
           >
             Delete
@@ -262,25 +281,32 @@ export function RemoveRecordForm({
             <button
               type="button"
               className="danger"
-              disabled={busy}
-              onClick={() => void run(false)}
+              disabled={busy || !target}
+              onClick={() => {
+                if (target) void run(target, selected?.label ?? "", false);
+              }}
             >
-              {busy ? "Deleting…" : "Yes, delete it"}
+              {busy ? "Deleting…" : `Yes, delete ${selected?.label ?? "it"}`}
             </button>
-            <button type="button" className="secondary" onClick={() => setConfirming(false)}>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+            >
               Cancel
             </button>
           </>
         )}
 
-        {needsCascade && (
+        {cascade && (
           <button
             type="button"
             className="danger"
             disabled={busy}
-            onClick={() => void run(true)}
+            onClick={() => void run(cascade.ref, cascade.label, true)}
           >
-            Delete it and everything it holds
+            Delete {cascade.label} and everything it holds
           </button>
         )}
 

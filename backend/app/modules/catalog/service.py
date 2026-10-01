@@ -510,27 +510,67 @@ def _options(pairs: list[tuple[int, str]]) -> list[FilterOption]:
     ]
 
 
-def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
-    def without(**cleared: list[int]) -> list[CapabilityResult]:
-        return _matching_results(db, replace(filters, **cleared))
+def _scoped_to_offerings(filters: CapabilityFilters) -> bool:
+    """Whether matching runs through an analysis rather than the institution.
 
-    institutions = without(institution_ids=[])
-    instruments = without(instrument_type_ids=[])
-    analyses = without(analysis_type_ids=[])
-    organisms = without(microorganism_ids=[])
-    researchers = without(researcher_ids=[])
+    With an analysis or organism filter, search demands that the instrument and
+    the researcher be linked to the very offering that matched. Offering the
+    institution's whole inventory and staff would then propose combinations the
+    search cannot satisfy, so the options have to be drawn from the links too.
+    """
+    return bool(filters.analysis_type_ids or filters.microorganism_ids)
+
+
+def _instrument_pairs(
+    results: list[CapabilityResult], filters: CapabilityFilters
+) -> list[tuple[int, str]]:
+    if _scoped_to_offerings(filters):
+        return [
+            (instrument.instrument_type_id, instrument.type_name)
+            for item in results
+            for analysis in item.matched_analyses
+            for instrument in analysis.instruments
+        ]
+    return [
+        (instrument.instrument_type_id, instrument.type_name)
+        for item in results
+        for instrument in item.matched_instruments
+    ]
+
+
+def _researcher_pairs(
+    results: list[CapabilityResult], filters: CapabilityFilters
+) -> list[tuple[int, str]]:
+    if _scoped_to_offerings(filters):
+        return [
+            (person.id, person.full_name)
+            for item in results
+            for analysis in item.matched_analyses
+            for person in analysis.researchers
+        ]
+    return [
+        (person.id, person.full_name)
+        for item in results
+        for person in item.matched_researchers
+    ]
+
+
+def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
+    def without(**cleared: list[int]) -> tuple[list[CapabilityResult], CapabilityFilters]:
+        narrowed = replace(filters, **cleared)
+        return _matching_results(db, narrowed), narrowed
+
+    institutions, _ = without(institution_ids=[])
+    instruments, instrument_filters = without(instrument_type_ids=[])
+    analyses, _ = without(analysis_type_ids=[])
+    organisms, _ = without(microorganism_ids=[])
+    researchers, researcher_filters = without(researcher_ids=[])
 
     return FilterOptions(
         institutions=_options(
             [(item.institution.id, item.institution.name) for item in institutions]
         ),
-        instrument_types=_options(
-            [
-                (instrument.instrument_type_id, instrument.type_name)
-                for item in instruments
-                for instrument in item.matched_instruments
-            ]
-        ),
+        instrument_types=_options(_instrument_pairs(instruments, instrument_filters)),
         analysis_types=_options(
             [
                 (analysis.analysis_type_id, analysis.type_name)
@@ -546,13 +586,7 @@ def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
                 for target in analysis.targets
             ]
         ),
-        researchers=_options(
-            [
-                (person.id, person.full_name)
-                for item in researchers
-                for person in item.matched_researchers
-            ]
-        ),
+        researchers=_options(_researcher_pairs(researchers, researcher_filters)),
     )
 
 

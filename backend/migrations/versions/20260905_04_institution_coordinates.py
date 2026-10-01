@@ -33,8 +33,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_institutions_longitude_in_range", "institutions", type_="check")
-    op.drop_constraint("ck_institutions_latitude_in_range", "institutions", type_="check")
-    op.drop_constraint("ck_institutions_coordinates_are_paired", "institutions", type_="check")
+    # op.f() marks these as finished names: without it the naming convention
+    # prefixes them a second time and the rollback drops constraints that do
+    # not exist.
+    op.drop_constraint(
+        op.f("ck_institutions_longitude_in_range"), "institutions", type_="check"
+    )
+    op.drop_constraint(
+        op.f("ck_institutions_latitude_in_range"), "institutions", type_="check"
+    )
+    op.drop_constraint(
+        op.f("ck_institutions_coordinates_are_paired"), "institutions", type_="check"
+    )
     op.drop_column("institutions", "longitude")
     op.drop_column("institutions", "latitude")

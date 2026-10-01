@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { popupNode } from "./mapLayer";
 
 /**
  * A small slippy map pinning one institution.
@@ -43,7 +44,7 @@ export function LocationMap({
       fillOpacity: 0.35,
     })
       .addTo(instance)
-      .bindPopup(label);
+      .bindPopup(popupNode(label));
 
     map.current = instance;
     return () => {

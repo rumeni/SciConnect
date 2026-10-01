@@ -12,7 +12,7 @@ would be worse than seeing its status.
 
 from __future__ import annotations
 
-from sqlalchemy import ColumnElement, or_, select
+from sqlalchemy import ColumnElement, case, or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.models import (
@@ -30,10 +30,29 @@ from app.modules.catalog.schemas import EntityMatch, EntitySearchResponse
 _UNREMARKABLE = {"active", "operational", "available"}
 
 
+def _escape(term: str) -> str:
+    """Defuse LIKE's own wildcards, so a typed % matches a literal %."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _contains(column: ColumnElement[str | None], term: str) -> ColumnElement[bool]:
     """Case-insensitive substring match, with LIKE's own wildcards defused."""
-    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return column.ilike(f"%{escaped}%", escape="\\")
+    return column.ilike(f"%{_escape(term)}%", escape="\\")
+
+
+def _best_first(column: ColumnElement[str | None], term: str) -> ColumnElement[int]:
+    """Order by relevance in the query, not after it.
+
+    The limit is applied by the database, so ranking afterwards in Python would
+    only reorder whichever names happened to come first alphabetically, and the
+    best match could be cut before it is ever seen.
+    """
+    escaped = _escape(term)
+    return case(
+        (column.ilike(f"{escaped}%", escape="\\"), 0),
+        (column.ilike(f"% {escaped}%", escape="\\"), 1),
+        else_=2,
+    )
 
 
 def _note(*parts: str | None) -> str | None:
@@ -52,13 +71,25 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
 
     matches: list[EntityMatch] = []
     # Each kind is capped on its own, so one crowded kind cannot fill the answer.
+    # One row beyond the cap is fetched to tell "exactly this many" from "more".
     per_kind = limit
+    cut_short = False
 
-    for institution in db.scalars(
-        select(Institution)
-        .where(_contains(Institution.name, term))
-        .order_by(Institution.name)
-        .limit(per_kind)
+    def take(rows):
+        """Keep this kind's share, remembering when there was more to show."""
+        nonlocal cut_short
+        found = list(rows)
+        if len(found) > per_kind:
+            cut_short = True
+        return found[:per_kind]
+
+    for institution in take(
+        db.scalars(
+            select(Institution)
+            .where(_contains(Institution.name, term))
+            .order_by(_best_first(Institution.name, term), Institution.name)
+            .limit(per_kind + 1)
+        )
     ):
         matches.append(
             EntityMatch(
@@ -72,11 +103,13 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
             )
         )
 
-    for instrument_type in db.scalars(
-        select(InstrumentType)
-        .where(_contains(InstrumentType.name, term))
-        .order_by(InstrumentType.name)
-        .limit(per_kind)
+    for instrument_type in take(
+        db.scalars(
+            select(InstrumentType)
+            .where(_contains(InstrumentType.name, term))
+            .order_by(_best_first(InstrumentType.name, term), InstrumentType.name)
+            .limit(per_kind + 1)
+        )
     ):
         matches.append(
             EntityMatch(
@@ -87,11 +120,13 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
             )
         )
 
-    for analysis_type in db.scalars(
-        select(AnalysisType)
-        .where(_contains(AnalysisType.name, term))
-        .order_by(AnalysisType.name)
-        .limit(per_kind)
+    for analysis_type in take(
+        db.scalars(
+            select(AnalysisType)
+            .where(_contains(AnalysisType.name, term))
+            .order_by(_best_first(AnalysisType.name, term), AnalysisType.name)
+            .limit(per_kind + 1)
+        )
     ):
         matches.append(
             EntityMatch(
@@ -102,16 +137,20 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
             )
         )
 
-    for organism in db.scalars(
-        select(Microorganism)
-        .where(
-            or_(
-                _contains(Microorganism.scientific_name, term),
-                _contains(Microorganism.common_name, term),
+    for organism in take(
+        db.scalars(
+            select(Microorganism)
+            .where(
+                or_(
+                    _contains(Microorganism.scientific_name, term),
+                    _contains(Microorganism.common_name, term),
+                )
             )
+            .order_by(
+                _best_first(Microorganism.scientific_name, term), Microorganism.scientific_name
+            )
+            .limit(per_kind + 1)
         )
-        .order_by(Microorganism.scientific_name)
-        .limit(per_kind)
     ):
         matches.append(
             EntityMatch(
@@ -126,10 +165,10 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
         select(Researcher, Institution.name)
         .join(Institution, Researcher.institution_id == Institution.id)
         .where(_contains(Researcher.full_name, term))
-        .order_by(Researcher.full_name)
-        .limit(per_kind)
+        .order_by(_best_first(Researcher.full_name, term), Researcher.full_name)
+        .limit(per_kind + 1)
     )
-    for researcher, institution_name in people:
+    for researcher, institution_name in take(people):
         matches.append(
             EntityMatch(
                 kind="researcher",
@@ -149,10 +188,13 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
             InstitutionInstrument.instrument_type_id == InstrumentType.id,
         )
         .where(_contains(InstitutionInstrument.display_name, term))
-        .order_by(InstitutionInstrument.display_name)
-        .limit(per_kind)
+        .order_by(
+            _best_first(InstitutionInstrument.display_name, term),
+            InstitutionInstrument.display_name,
+        )
+        .limit(per_kind + 1)
     )
-    for instrument, institution_name, type_name in instruments:
+    for instrument, institution_name, type_name in take(instruments):
         matches.append(
             EntityMatch(
                 kind="instrument",
@@ -169,10 +211,12 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
         .join(Institution, InstitutionAnalysis.institution_id == Institution.id)
         .join(AnalysisType, InstitutionAnalysis.analysis_type_id == AnalysisType.id)
         .where(_contains(InstitutionAnalysis.public_name, term))
-        .order_by(InstitutionAnalysis.public_name)
-        .limit(per_kind)
+        .order_by(
+            _best_first(InstitutionAnalysis.public_name, term), InstitutionAnalysis.public_name
+        )
+        .limit(per_kind + 1)
     )
-    for offering, institution_name, type_name in offerings:
+    for offering, institution_name, type_name in take(offerings):
         matches.append(
             EntityMatch(
                 kind="analysis",
@@ -188,7 +232,7 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
     return EntitySearchResponse(
         query=term,
         items=matches[:limit],
-        truncated=len(matches) > limit,
+        truncated=cut_short or len(matches) > limit,
     )
 
 

@@ -414,6 +414,13 @@ function ConnectionForms({
   onChanged: () => void;
 }) {
   const [analysisId, setAnalysisId] = useState("");
+  // Adding a connection has to reach the list of current connections too, which
+  // reads the offering directly rather than through the shared catalogs.
+  const [linkVersion, setLinkVersion] = useState(0);
+  const noteChange = () => {
+    setLinkVersion((count) => count + 1);
+    onChanged();
+  };
   const analysis = catalogs.institutionAnalyses.find(
     (item) => String(item.id) === analysisId,
   );
@@ -475,7 +482,7 @@ function ConnectionForms({
                 })
                 .then(() => "Instrument linked")
             }
-            onChanged={onChanged}
+            onChanged={noteChange}
           />
           <LinkForm
             title="Detect a target organism"
@@ -493,7 +500,7 @@ function ConnectionForms({
                 .linkTarget(analysis.id, { microorganism_id: Number(id) })
                 .then(() => "Target organism linked")
             }
-            onChanged={onChanged}
+            onChanged={noteChange}
           />
           <LinkForm
             title="Assign a researcher"
@@ -513,9 +520,13 @@ function ConnectionForms({
                 .linkResearcher(analysis.id, { researcher_id: Number(id), role })
                 .then(() => "Researcher linked")
             }
-            onChanged={onChanged}
+            onChanged={noteChange}
           />
-          <CurrentConnections analysisId={analysis.id} onChanged={onChanged} />
+          <CurrentConnections
+            analysisId={analysis.id}
+            version={linkVersion}
+            onChanged={noteChange}
+          />
         </div>
       )}
     </>

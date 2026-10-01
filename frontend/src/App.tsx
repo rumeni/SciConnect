@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, loadCatalogs } from "./api";
 import { Brand } from "./Logo";
 import { DetailPanel } from "./DetailPanel";
@@ -57,16 +57,35 @@ export default function App() {
   const [mapPoints, setMapPoints] = useState<InstitutionMapPoint[]>([]);
   const [location, setLocation] = useState<ViewerLocation | null>(readStoredLocation);
   const [askingLocation, setAskingLocation] = useState(false);
+  // Bumped whenever a write lands, so every derived list is recomputed and
+  // not just the ones that happen to depend on the filters.
+  const [dataVersion, setDataVersion] = useState(0);
 
-  const runSearch = useCallback(async (nextFilters: Filters) => {
+  /**
+   * Searches resolve out of order: change a filter, or press Clear, and a slow
+   * earlier reply can arrive last. Only the newest request may touch the
+   * results, the error or the loading flag.
+   */
+  const latestSearch = useRef(0);
+
+  const runSearch = useCallback(async (nextFilters: Filters, offset = 0) => {
+    const ticket = ++latestSearch.current;
     setLoading(true);
     setError("");
     try {
-      setResults(await api.search(nextFilters));
+      const answer = await api.search(nextFilters, offset);
+      if (ticket !== latestSearch.current) return;
+      // A later page extends the list; a new search replaces it.
+      setResults((shown) =>
+        offset && shown
+          ? { ...answer, items: [...shown.items, ...answer.items] }
+          : answer,
+      );
     } catch (reason) {
+      if (ticket !== latestSearch.current) return;
       setError(reason instanceof Error ? reason.message : "Search failed");
     } finally {
-      setLoading(false);
+      if (ticket === latestSearch.current) setLoading(false);
     }
   }, []);
 
@@ -91,6 +110,7 @@ export default function App() {
     filters.analysis_type_ids,
     filters.microorganism_ids,
     filters.researcher_ids,
+    dataVersion,
   ]);
 
   const refresh = useCallback(async () => {
@@ -103,6 +123,7 @@ export default function App() {
       setLoading(false);
       return;
     }
+    setDataVersion((count) => count + 1);
     await runSearch(filters);
   }, [filters, runSearch]);
 
@@ -121,10 +142,15 @@ export default function App() {
     void runSearch(emptyFilters);
   };
 
-  // Offered once per browser, and never on its own initiative afterwards.
-  useEffect(() => {
+  /**
+   * Asked the first time the visitor opens "Near me", which is the only view
+   * that needs the answer, and never on merely opening the site. Declining is
+   * remembered, so the tab stops asking and offers its own button instead.
+   */
+  const showNearby = () => {
+    setView("nearby");
     if (!readStoredLocation() && !hasBeenAsked()) setAskingLocation(true);
-  }, []);
+  };
 
   const acceptLocation = (shared: ViewerLocation) => {
     setLocation(shared);
@@ -163,7 +189,7 @@ export default function App() {
         <button
           type="button"
           className={view === "nearby" ? "tab active" : "tab"}
-          onClick={() => setView("nearby")}
+          onClick={showNearby}
         >
           Near me
         </button>
@@ -184,6 +210,7 @@ export default function App() {
           filters={filters}
           onFilterChange={updateFilter}
           onSearch={() => void runSearch(filters)}
+          onLoadMore={() => void runSearch(filters, results?.items.length ?? 0)}
           onClear={clear}
           onOpen={openDetail}
           results={results}

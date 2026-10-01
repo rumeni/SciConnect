@@ -7,6 +7,7 @@ export function Select({
   children,
   placeholder = "Any",
   required = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -15,6 +16,7 @@ export function Select({
   /** Text of the empty option. Pass null for a select that always has a value. */
   placeholder?: string | null;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label>
@@ -22,6 +24,7 @@ export function Select({
       <select
         value={value}
         required={required}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       >
         {placeholder !== null && <option value="">{placeholder}</option>}

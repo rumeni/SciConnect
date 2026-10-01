@@ -8,7 +8,10 @@ from app.core.database import Base
 from app.modules.catalog import models  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Alembic reads this through configparser, which treats "%" as interpolation.
+# A percent-encoded password (example%40password) would raise before any
+# migration runs, so the sign is escaped here and read back unescaped.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

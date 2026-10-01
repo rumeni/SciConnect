@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.main import app
-from app.seed import seed_catalog
+from app.seed import INSTITUTIONS, seed_catalog
 
 
 @pytest.mark.parametrize("method", ["GET", "HEAD"])
@@ -59,7 +59,7 @@ def test_readiness_counts_what_the_database_holds(
     body = client.get("/api/v1/health/database").json()
 
     assert body["database"] == "ok"
-    assert body["institutions"] == 5
+    assert body["institutions"] == len(INSTITUTIONS)
 
 
 def test_a_reachable_but_unmigrated_database_is_told_apart(client: TestClient) -> None:

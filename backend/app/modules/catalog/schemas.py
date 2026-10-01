@@ -1,6 +1,17 @@
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _blank_to_none(value: Any) -> Any:
+    """A text field left empty is absent, not an empty string.
+
+    It matters for unique columns: two records sent with orcid="" are two
+    identical values, while two records with no ORCID are simply unrelated.
+    """
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value.strip() if isinstance(value, str) else value
 
 
 class ORMModel(BaseModel):
@@ -204,16 +215,22 @@ class InstitutionCreate(BaseModel):
             raise ValueError("latitude and longitude must be given together")
         return self
 
+    _tidy_text = field_validator("*", mode="before")(_blank_to_none)
+
 
 class CatalogTypeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
+
+    _tidy_text = field_validator("*", mode="before")(_blank_to_none)
 
 
 class MicroorganismCreate(BaseModel):
     scientific_name: str = Field(min_length=1, max_length=240)
     common_name: str | None = Field(default=None, max_length=240)
     description: str | None = None
+
+    _tidy_text = field_validator("*", mode="before")(_blank_to_none)
 
 
 class ResearcherCreate(BaseModel):
@@ -225,6 +242,8 @@ class ResearcherCreate(BaseModel):
     expertise: str | None = None
     status: Literal["active", "inactive", "archived"] = "active"
 
+    _tidy_text = field_validator("*", mode="before")(_blank_to_none)
+
 
 class InstitutionInstrumentCreate(BaseModel):
     institution_id: int
@@ -235,6 +254,8 @@ class InstitutionInstrumentCreate(BaseModel):
     access_notes: str | None = None
     status: Literal["operational", "maintenance", "unavailable", "archived"] = "operational"
 
+    _tidy_text = field_validator("*", mode="before")(_blank_to_none)
+
 
 class InstitutionAnalysisCreate(BaseModel):
     institution_id: int
@@ -243,6 +264,8 @@ class InstitutionAnalysisCreate(BaseModel):
     description: str | None = None
     turnaround_days: int | None = Field(default=None, gt=0)
     availability: Literal["available", "limited", "unavailable", "archived"] = "available"
+
+    _tidy_text = field_validator("*", mode="before")(_blank_to_none)
 
 
 class AnalysisInstrumentLinkCreate(BaseModel):

@@ -45,6 +45,7 @@ export function SearchView({
   filters,
   onFilterChange,
   onSearch,
+  onLoadMore,
   onClear,
   onOpen,
   results,
@@ -55,6 +56,7 @@ export function SearchView({
   filters: Filters;
   onFilterChange: (name: keyof Filters, value: string) => void;
   onSearch: () => void;
+  onLoadMore: () => void;
   onClear: () => void;
   onOpen: (ref: EntityRef) => void;
   results: SearchResponse | null;
@@ -215,6 +217,20 @@ export function SearchView({
             </article>
           ))}
         </div>
+        {results && results.items.length < results.total && (
+          <div className="load-more">
+            <button
+              type="button"
+              className="secondary"
+              disabled={loading}
+              onClick={onLoadMore}
+            >
+              {loading
+                ? "Loading…"
+                : `Show more (${results.items.length} of ${results.total})`}
+            </button>
+          </div>
+        )}
       </section>
     </>
   );

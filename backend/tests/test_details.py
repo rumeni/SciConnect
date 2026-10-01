@@ -115,9 +115,12 @@ def test_microorganism_detail_names_every_offering_that_targets_it(
 
     institutions = sorted(item["institution"]["name"] for item in body["analyses"])
     assert institutions == [
+        "Clinical Microbiology Laboratory Vojvodina",
         "Environmental Research Center",
         "Faculty of Veterinary Medicine Core Facility",
         "Institute of Molecular Genetics",
+        "Institute of Soil Microbiology",
+        "National Reference Laboratory for Water Microbiology",
     ]
 
 
@@ -126,12 +129,16 @@ def test_instrument_type_detail_groups_the_owning_institutions(seeded: TestClien
 
     body = _get(seeded, f"/catalog/instrument-types/{type_id}")
 
-    assert len(body["instruments"]) == 4
+    assert len(body["instruments"]) == 8
     assert [item["name"] for item in body["institutions"]] == [
         "Center for Analytical Chemistry",
+        "Clinical Microbiology Laboratory Vojvodina",
         "Faculty of Veterinary Medicine Core Facility",
+        "Institute for Plant Protection",
+        "Institute of Food Safety and Quality",
         "Institute of Molecular Genetics",
         "Institute of Virology",
+        "National Reference Laboratory for Water Microbiology",
     ]
 
 
@@ -143,6 +150,7 @@ def test_analysis_type_detail_lists_every_institution_offering_it(seeded: TestCl
     assert [item["institution"]["name"] for item in body["analyses"]] == [
         "Institute of Virology",
         "Institute of Molecular Genetics",
+        "Institute of Soil Microbiology",
     ]
 
 

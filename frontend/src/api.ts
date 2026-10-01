@@ -99,8 +99,11 @@ export const api = {
   institutionAnalyses: () =>
     request<InstitutionAnalysis[]>("/api/v1/catalog/institution-analyses"),
 
-  search: (filters: Record<string, string>) =>
-    request<SearchResponse>(`/api/v1/capabilities/search?${asQuery(filters)}`),
+  search: (filters: Record<string, string>, offset = 0) => {
+    const query = asQuery(filters);
+    if (offset) query.set("offset", String(offset));
+    return request<SearchResponse>(`/api/v1/capabilities/search?${query}`);
+  },
 
   filterOptions: (filters: Record<string, string>) =>
     request<FilterOptions>(`/api/v1/capabilities/filter-options?${asQuery(filters)}`),
