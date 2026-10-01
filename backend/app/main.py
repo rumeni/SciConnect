@@ -30,6 +30,15 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.head("/api/v1/health", tags=["system"])
+def health_head() -> Response:
+    """Allow uptime monitors to check liveness without a response body."""
+    response = Response(status_code=status.HTTP_200_OK)
+    # Omit the length rather than claiming that the GET representation is empty.
+    del response.headers["content-length"]
+    return response
+
+
 def _probe(db: Session, sql: str) -> int | str | None:
     """Read one value, answering None when the query cannot run.
 
@@ -69,3 +78,12 @@ def database_health(
     report["migration"] = _probe(db, "SELECT version_num FROM alembic_version")
     report["institutions"] = _probe(db, "SELECT count(*) FROM institutions")
     return report
+
+
+@app.head("/api/v1/health/database", tags=["system"])
+def database_health_head(db: Annotated[Session, Depends(get_db)]) -> Response:
+    """Run the same database checks as GET, returning only the status and headers."""
+    response = Response(status_code=status.HTTP_200_OK)
+    database_health(response, db)
+    del response.headers["content-length"]
+    return response

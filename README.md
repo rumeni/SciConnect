@@ -87,6 +87,18 @@ An unreachable database answers `503` with the error type only. The full
 message stays in the service logs, because this endpoint is public and
 connection errors name hosts and users.
 
+Both endpoints also accept `HEAD` requests for uptime monitors such as
+UptimeRobot. `HEAD /api/v1/health/database` performs the same database checks
+as `GET`, returning `200` when reachable or `503` when unreachable, with no
+response body. A reachable but unmigrated database still returns `200`;
+use `GET` to inspect the migration and institution fields.
+
+For UptimeRobot HTTP / website monitoring, use the deployed backend URL plus
+`/api/v1/health/database`, keep the default `HEAD` method, select a five-minute
+interval, and enable email notifications. Deploy the backend with HEAD support
+before enabling the monitor. Monitor the frontend URL separately to detect
+frontend outages as well.
+
 ## Hosting
 
 The API reads `DATABASE_URL`. Managed hosts inject a driverless URL such as

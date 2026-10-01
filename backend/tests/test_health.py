@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -7,11 +8,37 @@ from app.main import app
 from app.seed import seed_catalog
 
 
-def test_liveness_does_not_need_the_database(client: TestClient) -> None:
-    response = client.get("/api/v1/health")
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+def test_liveness_does_not_need_the_database(client: TestClient, method: str) -> None:
+    def unavailable_database():
+        raise AssertionError("Liveness must not acquire a database session")
+
+    app.dependency_overrides[get_db] = unavailable_database
+    response = client.request(method, "/api/v1/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    if method == "GET":
+        assert response.json() == {"status": "ok"}
+    else:
+        assert response.content == b""
+
+
+def test_head_readiness_checks_the_database_without_a_body(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    statements: list[str] = []
+    execute = db.execute
+
+    def record_execute(statement, *args, **kwargs):
+        statements.append(str(statement))
+        return execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db, "execute", record_execute)
+    response = client.head("/api/v1/health/database")
+
+    assert response.status_code == 200
+    assert response.content == b""
+    assert "SELECT 1" in statements
 
 
 def test_readiness_reports_a_reachable_database(client: TestClient) -> None:
@@ -43,7 +70,8 @@ def test_a_reachable_but_unmigrated_database_is_told_apart(client: TestClient) -
     assert body["migration"] is None
 
 
-def test_an_unreachable_database_answers_503(client: TestClient) -> None:
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+def test_an_unreachable_database_answers_503(client: TestClient, method: str) -> None:
     class Unreachable:
         def execute(self, *_args: object, **_kwargs: object) -> None:
             raise OperationalError("SELECT 1", {}, Exception("connection refused"))
@@ -53,14 +81,17 @@ def test_an_unreachable_database_answers_503(client: TestClient) -> None:
 
     app.dependency_overrides[get_db] = lambda: Unreachable()
     try:
-        response = client.get("/api/v1/health/database")
+        response = client.request(method, "/api/v1/health/database")
     finally:
         app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 503
-    body = response.json()
-    assert body["database"] == "unavailable"
-    assert body["error"] == "OperationalError"
+    if method == "GET":
+        body = response.json()
+        assert body["database"] == "unavailable"
+        assert body["error"] == "OperationalError"
+    else:
+        assert response.content == b""
 
 
 def test_the_failure_reply_carries_no_connection_details(client: TestClient) -> None:
