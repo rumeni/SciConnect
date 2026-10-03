@@ -32,6 +32,11 @@
   --shadow: 0 18px 46px rgba(2, 12, 26, 0.5);
   --radius: 14px;
 
+  /* Leaflet numbers its own panes and controls up to 1000, and those compete
+     with the page unless a map is isolated. Page chrome sits above that. */
+  --layer-dropdown: 1100;
+  --layer-overlay: 1200;
+
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   color: var(--text);
@@ -270,7 +275,7 @@ h3 .title-button { font-size: 1.55rem; font-weight: 400; }
 .detail-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: var(--layer-overlay);
   display: flex;
   justify-content: flex-end;
   background: rgba(3, 12, 26, .62);
@@ -328,7 +333,9 @@ h3 .title-button { font-size: 1.55rem; font-weight: 400; }
 .detail-section .empty { padding: 0; color: var(--faint); font-size: .88rem; }
 
 /* --- Maps ----------------------------------------------------------------- */
-.map-wrap { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; }
+/* Keep Leaflet's internal stacking to itself: without this its panes and
+   controls are numbered against the whole page and paint over dialogs. */
+.map-wrap { isolation: isolate; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; }
 .map { height: 260px; background: var(--surface-sunken); }
 .map-tall { height: 420px; }
 .map-hint {
@@ -443,7 +450,7 @@ h3 .title-button { font-size: 1.55rem; font-weight: 400; }
 
 .entity-results {
   position: absolute;
-  z-index: 30;
+  z-index: var(--layer-dropdown);
   top: calc(100% + 6px);
   left: 0;
   right: 0;
