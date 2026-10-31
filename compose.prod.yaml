@@ -1,0 +1,153 @@
+# The hosted deployment. Used on its own, not as an overlay:
+#
+#   docker compose -f compose.prod.yaml --env-file .env.production up -d --build
+#
+# What makes it different from compose.yaml, besides the proxy:
+#
+#   * only Caddy publishes a port, so the database and both app containers are
+#     reachable from the host network and nowhere else
+#   * nothing is bind-mounted from the host, so the running code is the built
+#     image rather than whatever is in the working tree
+#   * no --reload: it watches files, costs memory, and serves whatever lands on
+#     disk
+#   * every secret comes from the environment with no default, so a missing one
+#     fails the deploy instead of installing a known password
+
+name: sciconnect
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    # No `ports`. The API reaches it over the compose network; nothing outside
+    # the host needs to, and a published 5432 is the single most scanned port
+    # on a new server.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Turns on every check in app/core/config.py. The API refuses to start if
+      # any of the settings below is missing or unsafe.
+      APP_ENV: production
+      APP_ADMIN_TOKEN: "${APP_ADMIN_TOKEN:?generate one with openssl rand -base64 48}"
+      APP_CORS_ORIGINS: '["https://${SITE_DOMAIN:?set SITE_DOMAIN}"]'
+      APP_ALLOWED_HOSTS: '["${SITE_DOMAIN}"]'
+      # Caddy is the one proxy in front, and it appends the address it saw to
+      # X-Forwarded-For. Reading exactly one hop deep is what stops a caller
+      # from choosing its own identity, and its own rate limit budget.
+      APP_TRUSTED_PROXY_HOPS: "1"
+      APP_RATE_LIMIT_READ: ${APP_RATE_LIMIT_READ:-120/minute}
+      APP_RATE_LIMIT_WRITE: ${APP_RATE_LIMIT_WRITE:-20/minute}
+      APP_RATE_LIMIT_GEOCODE: ${APP_RATE_LIMIT_GEOCODE:-10/minute}
+      APP_RATE_LIMIT_AUTH: ${APP_RATE_LIMIT_AUTH:-5/minute}
+      # Off by default here: the demo catalog is not what a real site should
+      # come up holding.
+      APP_SEED_ON_STARTUP: "${APP_SEED_ON_STARTUP:-false}"
+      APP_GEOCODING_ENABLED: "${APP_GEOCODING_ENABLED:-true}"
+      APP_GEOCODING_USER_AGENT: "SciConnect (https://${SITE_DOMAIN})"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # One worker on purpose: the rate limiter counts in process memory, so two
+    # workers would allow twice the configured rate. Scaling past one needs a
+    # shared store first.
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--workers",
+        "1",
+        "--proxy-headers",
+        "--forwarded-allow-ips",
+        "*",
+        "--no-server-header",
+      ]
+    logging: *logging
+
+  frontend:
+    build:
+      context: ./frontend
+      # The default stage: the built bundle served by nginx. Never the Vite dev
+      # server, which ships unminified sources and rejects unknown Host headers.
+      target: production
+    restart: unless-stopped
+    environment:
+      # The site's own origin, so the page calls the API through the same door
+      # it was served from. Anything else reintroduces CORS and widens the CSP.
+      VITE_API_URL: https://${SITE_DOMAIN}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080 >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      # QUIC. Harmless to leave out if the firewall only opens TCP.
+      - "443:443/udp"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
+      # Let's Encrypt uses this to warn about a certificate that is about to
+      # expire and has not renewed.
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The issued certificates and the account key. Losing this volume means
+      # asking Let's Encrypt for everything again, which is rate limited.
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      - api
+      - frontend
+    logging: *logging
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+  caddy_logs:

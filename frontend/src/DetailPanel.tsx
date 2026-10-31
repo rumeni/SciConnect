@@ -51,12 +51,18 @@ export function DetailPanel({
   onBack,
   onClose,
   onChanged,
+  canEdit,
 }: {
   stack: EntityRef[];
   onOpen: (ref: EntityRef) => void;
   onBack: () => void;
   onClose: () => void;
   onChanged: () => void;
+  /**
+   * Whether to offer Remove beside each row. A guest is shown none: the server
+   * would refuse the request anyway, and a button that can only fail is noise.
+   */
+  canEdit: boolean;
 }) {
   const current = stack[stack.length - 1];
   const [detail, setDetail] = useState<EntityDetail | null>(null);
@@ -177,7 +183,7 @@ export function DetailPanel({
                           {item.badge && <em className="role">{item.badge}</em>}
                           {item.note && <span className="link-note">{item.note}</span>}
                         </button>
-                        {item.remove && (
+                        {canEdit && item.remove && (
                           <RowRemoval
                             removal={item.remove}
                             onDone={() => {

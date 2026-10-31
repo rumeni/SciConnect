@@ -17,6 +17,7 @@ import type {
   Researcher,
   SearchResponse,
 } from "./types";
+import { adminKey, expire } from "./session";
 
 declare global {
   interface Window {
@@ -46,9 +47,32 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, init);
   if (!response.ok) {
-    throw new ApiError(await readError(response), response.status);
+    const message = await describeFailure(response);
+    // A key that worked when this tab signed in has stopped working, most
+    // likely because it was changed on the server. Staying "signed in" would
+    // only show forms that every write refuses, so the session ends here.
+    if (response.status === 401 && adminKey()) expire();
+    throw new ApiError(message, response.status);
   }
   return response.json() as Promise<T>;
+}
+
+/**
+ * The two refusals the server makes on its own say nothing about this form, so
+ * they are rewritten into what the person reading the screen has to do next.
+ */
+async function describeFailure(response: Response): Promise<string> {
+  if (response.status === 401) {
+    return adminKey()
+      ? "Your admin key is no longer accepted. Sign in again."
+      : "Changing the catalog needs an admin key. Sign in as admin.";
+  }
+  if (response.status === 429) {
+    const seconds = Number(response.headers.get("Retry-After") ?? 0);
+    const wait = seconds > 0 ? ` Try again in ${seconds} second${seconds === 1 ? "" : "s"}.` : "";
+    return `Too many requests in a short time.${wait}`;
+  }
+  return readError(response);
 }
 
 /** FastAPI reports a plain string for domain errors and a list for validation errors. */
@@ -76,19 +100,49 @@ function asQuery(filters: Record<string, string>): URLSearchParams {
   return query;
 }
 
+/**
+ * The header that proves this browser may change the catalog.
+ *
+ * Only writes carry it. Reading the catalog is public, and sending the secret
+ * on every read would spend it on requests that do not need it.
+ */
+function adminHeaders(): Record<string, string> {
+  const key = adminKey();
+  return key ? { "X-Admin-Token": key } : {};
+}
+
 function remove<T = unknown>(path: string): Promise<T> {
-  return request<T>(path, { method: "DELETE" });
+  return request<T>(path, { method: "DELETE", headers: adminHeaders() });
 }
 
 function post<T>(path: string, payload: unknown): Promise<T> {
   return request<T>(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...adminHeaders() },
     body: JSON.stringify(payload),
   });
 }
 
 export const api = {
+  /**
+   * Ask the server whether a key opens the catalog for writing. Sent before the
+   * key is stored, so a wrong one never becomes this tab's session.
+   */
+  checkAdminKey: async (key: string): Promise<{ keyRequired: boolean }> => {
+    const response = await fetch(`${API_URL}/api/v1/auth/check`, {
+      method: "POST",
+      headers: { "X-Admin-Token": key.trim() },
+    });
+    if (response.status === 401) {
+      throw new ApiError("That admin key is not right.", 401);
+    }
+    if (!response.ok) {
+      throw new ApiError(await describeFailure(response), response.status);
+    }
+    const body = (await response.json()) as { key_required: boolean };
+    return { keyRequired: body.key_required };
+  },
+
   institutions: () => request<Institution[]>("/api/v1/catalog/institutions"),
   instrumentTypes: () => request<CatalogItem[]>("/api/v1/catalog/instrument-types"),
   analysisTypes: () => request<CatalogItem[]>("/api/v1/catalog/analysis-types"),

@@ -1,0 +1,292 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, loadCatalogs } from "./api";
+import { Brand } from "./Logo";
+import { DetailPanel } from "./DetailPanel";
+import { EntitySearch } from "./EntitySearch";
+import { LocationPrompt } from "./LocationPrompt";
+import { ManageView } from "./ManageView";
+import { NearbyView } from "./NearbyView";
+import type { Role } from "./session";
+import { emptyFilters, SearchView, type Filters } from "./SearchView";
+import {
+  forgetLocation,
+  hasBeenAsked,
+  readStoredLocation,
+  rememberAsked,
+  storeLocation,
+} from "./viewerLocation";
+import type {
+  Catalogs,
+  EntityRef,
+  FilterOptions,
+  InstitutionMapPoint,
+  SearchResponse,
+  ViewerLocation,
+} from "./types";
+
+const noOptions: FilterOptions = {
+  institutions: [],
+  instrument_types: [],
+  analysis_types: [],
+  microorganisms: [],
+  researchers: [],
+};
+
+const emptyCatalogs: Catalogs = {
+  institutions: [],
+  instrumentTypes: [],
+  analysisTypes: [],
+  microorganisms: [],
+  researchers: [],
+  institutionInstruments: [],
+  institutionAnalyses: [],
+};
+
+type View = "search" | "nearby" | "contribute";
+
+/**
+ * The app itself, as a guest or an admin sees it.
+ *
+ * The two differ in one way only: an admin can change the catalog. A guest has
+ * no "Add & connect" tab and no Remove buttons. Hiding them is for clarity, not
+ * protection: the server refuses every write that lacks the admin key.
+ */
+export function Workspace({
+  role,
+  onSignIn,
+  onLeave,
+}: {
+  role: Role;
+  onSignIn: () => void;
+  onLeave: () => void;
+}) {
+  const canEdit = role === "admin";
+  const [view, setView] = useState<View>("search");
+  const [catalogs, setCatalogs] = useState<Catalogs>(emptyCatalogs);
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [options, setOptions] = useState<FilterOptions>(noOptions);
+  const [results, setResults] = useState<SearchResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  // Opening a related record pushes onto the stack, so "Back" returns to the
+  // record it was reached from.
+  const [detailStack, setDetailStack] = useState<EntityRef[]>([]);
+  const [mapPoints, setMapPoints] = useState<InstitutionMapPoint[]>([]);
+  const [location, setLocation] = useState<ViewerLocation | null>(readStoredLocation);
+  const [askingLocation, setAskingLocation] = useState(false);
+  // Bumped whenever a write lands, so every derived list is recomputed and
+  // not just the ones that happen to depend on the filters.
+  const [dataVersion, setDataVersion] = useState(0);
+
+  /**
+   * Searches resolve out of order: change a filter, or press Clear, and a slow
+   * earlier reply can arrive last. Only the newest request may touch the
+   * results, the error or the loading flag.
+   */
+  const latestSearch = useRef(0);
+
+  const runSearch = useCallback(async (nextFilters: Filters, offset = 0) => {
+    const ticket = ++latestSearch.current;
+    setLoading(true);
+    setError("");
+    try {
+      const answer = await api.search(nextFilters, offset);
+      if (ticket !== latestSearch.current) return;
+      // A later page extends the list; a new search replaces it.
+      setResults((shown) =>
+        offset && shown
+          ? { ...answer, items: [...shown.items, ...answer.items] }
+          : answer,
+      );
+    } catch (reason) {
+      if (ticket !== latestSearch.current) return;
+      setError(reason instanceof Error ? reason.message : "Search failed");
+    } finally {
+      if (ticket === latestSearch.current) setLoading(false);
+    }
+  }, []);
+
+  // Each filter offers only values that still lead somewhere, so the options
+  // are recomputed whenever a selection changes.
+  useEffect(() => {
+    let active = true;
+    api
+      .filterOptions(filters)
+      .then((next) => {
+        if (active) setOptions(next);
+      })
+      .catch(() => {
+        /* Leave the previous options in place; the search reports failures. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    filters.institution_ids,
+    filters.instrument_type_ids,
+    filters.analysis_type_ids,
+    filters.microorganism_ids,
+    filters.researcher_ids,
+    dataVersion,
+  ]);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [loaded, points] = await Promise.all([loadCatalogs(), api.mapInstitutions()]);
+      setCatalogs(loaded);
+      setMapPoints(points);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "API is unavailable");
+      setLoading(false);
+      return;
+    }
+    setDataVersion((count) => count + 1);
+    await runSearch(filters);
+  }, [filters, runSearch]);
+
+  useEffect(() => {
+    void refresh();
+    // The initial load must not re-run when the filters change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const updateFilter = (name: keyof Filters, value: string) => {
+    setFilters((current) => ({ ...current, [name]: value }));
+  };
+
+  const clear = () => {
+    setFilters(emptyFilters);
+    void runSearch(emptyFilters);
+  };
+
+  /**
+   * Asked the first time the visitor opens "Near me", which is the only view
+   * that needs the answer, and never on merely opening the site. Declining is
+   * remembered, so the tab stops asking and offers its own button instead.
+   */
+  const showNearby = () => {
+    setView("nearby");
+    if (!readStoredLocation() && !hasBeenAsked()) setAskingLocation(true);
+  };
+
+  const acceptLocation = (shared: ViewerLocation) => {
+    setLocation(shared);
+    storeLocation(shared);
+    rememberAsked();
+    setAskingLocation(false);
+    setView("nearby");
+  };
+
+  const declineLocation = () => {
+    rememberAsked();
+    setAskingLocation(false);
+  };
+
+  const forget = () => {
+    setLocation(null);
+    forgetLocation();
+  };
+
+  const openDetail = (ref: EntityRef) => setDetailStack((current) => [...current, ref]);
+  const closeDetail = useCallback(() => setDetailStack([]), []);
+  const backDetail = () => setDetailStack((current) => current.slice(0, -1));
+
+  return (
+    <main>
+      <header className="workspace-head">
+        <Brand />
+        <div className={canEdit ? "session-bar admin" : "session-bar"}>
+          {canEdit ? (
+            <>
+              <p>
+                <strong>Admin</strong> You can add, connect and remove records.
+              </p>
+              <button type="button" className="secondary" onClick={onLeave}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>Guest</strong> You can search and open every record. Changes need an
+                admin.
+              </p>
+              <button type="button" className="secondary" onClick={onSignIn}>
+                Sign in as admin
+              </button>
+              <button type="button" className="link-button" onClick={onLeave}>
+                Start page
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <nav className="tabs" aria-label="Views">
+        <button
+          type="button"
+          className={view === "search" ? "tab active" : "tab"}
+          onClick={() => setView("search")}
+        >
+          Search
+        </button>
+        <button
+          type="button"
+          className={view === "nearby" ? "tab active" : "tab"}
+          onClick={showNearby}
+        >
+          Near me
+        </button>
+        {canEdit && (
+          <button
+            type="button"
+            className={view === "contribute" ? "tab active" : "tab"}
+            onClick={() => setView("contribute")}
+          >
+            Add &amp; connect
+          </button>
+        )}
+      </nav>
+
+      <EntitySearch onOpen={openDetail} />
+
+      {view === "search" ? (
+        <SearchView
+          options={options}
+          filters={filters}
+          onFilterChange={updateFilter}
+          onSearch={() => void runSearch(filters)}
+          onLoadMore={() => void runSearch(filters, results?.items.length ?? 0)}
+          onClear={clear}
+          onOpen={openDetail}
+          results={results}
+          loading={loading}
+          error={error}
+        />
+      ) : view === "nearby" ? (
+        <NearbyView
+          location={location}
+          institutions={mapPoints}
+          onOpen={openDetail}
+          onAsk={() => setAskingLocation(true)}
+          onForget={forget}
+        />
+      ) : canEdit ? (
+        <ManageView catalogs={catalogs} onChanged={() => void refresh()} />
+      ) : null}
+
+      {askingLocation && (
+        <LocationPrompt onShare={acceptLocation} onDismiss={declineLocation} />
+      )}
+
+      <DetailPanel
+        stack={detailStack}
+        onOpen={openDetail}
+        onBack={backDetail}
+        onClose={closeDetail}
+        onChanged={() => void refresh()}
+        canEdit={canEdit}
+      />
+    </main>
+  );
+}

@@ -1,0 +1,63 @@
+# The front door. Caddy is the only container that publishes a port.
+#
+# It gets and renews the TLS certificate from Let's Encrypt by itself, with no
+# cron job and no certbot, and it serves the app and the API on one origin:
+#
+#   https://example.org/api/…   the FastAPI service
+#   https://example.org/…       the built React bundle, served by nginx
+#
+# One origin is the point. The page calls the API with same-origin requests, so
+# there is no CORS to get wrong, one certificate to keep, and the page's
+# `connect-src 'self'` needs no exception.
+
+{
+	email {$ACME_EMAIL}
+	# The admin API can reconfigure Caddy at runtime. Nothing here uses it, and
+	# it is one fewer thing listening.
+	admin off
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	# TLS is terminated here, so this is the only place that can honestly tell a
+	# browser the site is HTTPS-only. Add `preload` once the domain has run on
+	# HTTPS long enough to commit to it: the preload list is slow to leave.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	header -Server
+
+	# A hard ceiling, independent of the API's own check: this one applies to a
+	# chunked body that declares no length, which the API cannot measure before
+	# reading it.
+	request_body {
+		max_size 1MB
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# The interactive API docs describe every write endpoint. They are already
+	# switched off by APP_ENV in production; this makes it true at the door as
+	# well, so turning them on by accident does not publish them.
+	handle /docs* {
+		respond 404
+	}
+	handle /redoc* {
+		respond 404
+	}
+	handle /openapi.json {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy frontend:8080
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}

@@ -113,6 +113,12 @@ frontend outages as well.
 
 ## Hosting
 
+For a single server with your own domain (Hetzner or any VPS), follow
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). It uses `compose.prod.yaml`: Caddy
+handles automatic HTTPS, writes require `APP_ADMIN_TOKEN`, every client gets a
+rate limit, and the API refuses to start in production with an unsafe
+configuration.
+
 The API reads `DATABASE_URL`. Managed hosts inject a driverless URL such as
 `postgresql://user:pass@host/db`, and SQLAlchemy reads a driverless PostgreSQL
 URL as psycopg2, which this project does not install: it uses psycopg 3. The

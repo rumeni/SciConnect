@@ -36,6 +36,9 @@ FROM nginx:1.27-alpine AS production
 ENV PORT=8080
 ENV NGINX_ENVSUBST_FILTER=PORT
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+# Not a template: it holds no variables, and envsubst would have to be told to
+# leave nginx's own $uri-style names alone.
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
 COPY --from=build /app/dist /usr/share/nginx/html
