@@ -8,12 +8,32 @@ import { Brand } from "./Logo";
  * lights the records and links it has to cross, which is the idea the rest of
  * the app is built on: a match is a chain of stated links, not a keyword.
  */
-export function Landing({ onGuest, onAdmin }: { onGuest: () => void; onAdmin: () => void }) {
+export function Landing({
+  onGuest,
+  onAdmin,
+  onPartners,
+}: {
+  onGuest: () => void;
+  onAdmin: () => void;
+  onPartners: () => void;
+}) {
   const tryIt = useRef<HTMLElement>(null);
 
   return (
     <main className="landing">
-      <Brand />
+      <header className="landing-head">
+        <Brand />
+        <a
+          className="secondary partners-link"
+          href="/partners"
+          onClick={(event) => {
+            event.preventDefault();
+            onPartners();
+          }}
+        >
+          Partners &amp; Supporters
+        </a>
+      </header>
 
       <section className="landing-hero">
         <div className="landing-intro">
