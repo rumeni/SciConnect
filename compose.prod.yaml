@@ -50,7 +50,10 @@ services:
       APP_ENV: production
       APP_ADMIN_TOKEN: "${APP_ADMIN_TOKEN:?generate one with openssl rand -base64 48}"
       APP_CORS_ORIGINS: '["https://${SITE_DOMAIN:?set SITE_DOMAIN}"]'
-      APP_ALLOWED_HOSTS: '["${SITE_DOMAIN}"]'
+      # localhost is for the healthcheck below, which calls the API from inside
+      # its own container. It cannot be reached that way from outside: port 8000
+      # is not published, and Caddy only forwards requests for SITE_DOMAIN.
+      APP_ALLOWED_HOSTS: '["${SITE_DOMAIN}", "localhost"]'
       # Caddy is the one proxy in front, and it appends the address it saw to
       # X-Forwarded-For. Reading exactly one hop deep is what stops a caller
       # from choosing its own identity, and its own rate limit budget.
