@@ -5,6 +5,11 @@
 # vulnerabilities to try and tells a browser nothing it uses.
 server_tokens off;
 
+# nginx answers a directory request without its trailing slash with a redirect.
+# Absolute, that redirect would name this container's own port (8080), which
+# the browser cannot reach behind the proxy. Relative, it stays on the site.
+absolute_redirect off;
+
 server {
     listen      ${PORT};
     listen      [::]:${PORT};

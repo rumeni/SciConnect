@@ -39,7 +39,7 @@ export default function App() {
   const [signingInFrom, setSigningInFrom] = useState<Role | "start" | null>(null);
 
   const screen =
-    path === PARTNERS_PATH
+    path.replace(/\/+$/, "") === PARTNERS_PATH
       ? "partners"
       : current.role
         ? "workspace"
