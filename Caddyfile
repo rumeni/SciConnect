@@ -11,7 +11,10 @@
 # `connect-src 'self'` needs no exception.
 
 {
-	email {$ACME_EMAIL}
+	# No contact email: Let's Encrypt stopped sending expiry reminders in
+	# 2025, and Caddy renews on its own. Add `email you@example.org` here to
+	# give the ACME account a contact anyway.
+
 	# The admin API can reconfigure Caddy at runtime. Nothing here uses it, and
 	# it is one fewer thing listening.
 	admin off

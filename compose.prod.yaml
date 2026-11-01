@@ -131,9 +131,6 @@ services:
       - "443:443/udp"
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
-      # Let's Encrypt uses this to warn about a certificate that is about to
-      # expire and has not renewed.
-      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # The issued certificates and the account key. Losing this volume means

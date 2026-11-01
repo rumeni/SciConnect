@@ -26,9 +26,15 @@ U [Hetzner Cloud Console](https://console.hetzner.cloud):
 
 1. **New project → Add server**
 2. **Location:** Falkenstein ili Nuremberg (najbliže Srbiji)
-3. **Image:** Ubuntu 24.04
-4. **Type:** CX22 (2 vCPU, 4 GB RAM) je dovoljan. CAX11 (ARM) je jeftiniji i
-   takođe radi, jer su sve slike multi-arch.
+3. **Image:** Ubuntu 24.04 ili 26.04 (LTS izdanja)
+4. **Type:** Shared Resources → Regular Performance.
+   - **CPX02** (1 vCPU, 1 GB RAM) je dovoljan za rad aplikacije, ali samo uz swap
+     iz koraka 4. Bez swapa `docker compose --build` može da ostane bez memorije
+     dok gradi frontend.
+   - **CPX12** (2 GB RAM) je udobniji izbor, i build na njemu prolazi bez muke.
+
+   Kasnije možeš preći na jači tip jednim klikom (**Rescale**). Ako tada izabereš
+   „CPU and RAM only”, disk ostaje isti i možeš se vratiti nazad.
 5. **SSH key:** dodaj svoj javni ključ. Ako ga nemaš, napravi ga na laptopu:
    ```bash
    ssh-keygen -t ed25519
@@ -80,6 +86,15 @@ dpkg-reconfigure -plow unattended-upgrades   # automatske bezbednosne zakrpe
 curl -fsSL https://get.docker.com | sh
 ```
 
+Dodaj 2 GB swapa. Na serveru sa 1 GB RAM-a (CPX02) ovo je obavezno, a na većem
+ne smeta:
+```bash
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+sysctl -w vm.swappiness=10 && echo 'vm.swappiness=10' > /etc/sysctl.d/99-swap.conf
+free -h   # "Swap" treba da pokaže 2.0Gi
+```
+
 Napravi korisnika za aplikaciju i isključi root prijavu:
 ```bash
 adduser --disabled-password --gecos "" deploy
@@ -113,7 +128,7 @@ echo "APP_ADMIN_TOKEN=$(openssl rand -base64 48 | tr -d '\n')"
 ```
 
 Otvori `.env.production` (`nano .env.production`) i popuni `SITE_DOMAIN`,
-`ACME_EMAIL`, `POSTGRES_PASSWORD` i `APP_ADMIN_TOKEN`.
+`POSTGRES_PASSWORD` i `APP_ADMIN_TOKEN`.
 
 **Admin token sačuvaj u menadžeru lozinki.** Bez njega ne možeš da menjaš katalog.
 
