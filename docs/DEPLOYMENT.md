@@ -63,8 +63,8 @@ Kod registrara, u DNS podešavanjima:
 | A | `@` | IPv4 servera |
 | AAAA | `@` | IPv6 servera (opciono) |
 
-Ako želiš i `www`, dodaj `CNAME www → tvojdomen.rs` i pogledaj napomenu o `www`
-na kraju dokumenta.
+Dodaj i `CNAME www → tvojdomen.rs`. Caddy `www.tvojdomen.rs` trajno
+preusmerava na `tvojdomen.rs` i dobija sertifikat i za njega.
 
 Proveri sa laptopa (može da potraje nekoliko minuta):
 ```bash
@@ -217,9 +217,5 @@ gunzip -c backup-Mon.sql.gz | docker compose -f compose.prod.yaml --env-file .en
   Restart briše brojače. Za više instanci bi trebao Redis.
 - **Jedan admin ključ za sve.** Nema korisničkih naloga ni zapisa o tome ko je šta
   promenio. Ako više ljudi uređuje katalog, sledeći korak je pravi login sistem.
-- **`www.tvojdomen.rs`** ne radi dok ga ne dodaš. U `Caddyfile` dodaj blok:
-  ```
-  www.{$SITE_DOMAIN} {
-      redir https://{$SITE_DOMAIN}{uri} permanent
-  }
-  ```
+- **`www` zahteva CNAME zapis.** Bez njega glavni sajt i dalje radi, ali Caddy
+  u logu stalno ponavlja pokušaj da dobije sertifikat za `www`.

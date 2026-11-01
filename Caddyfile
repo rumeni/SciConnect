@@ -64,3 +64,13 @@
 		}
 	}
 }
+
+# The www name answers too, and sends every request to the bare domain, so the
+# site has one address and one set of cookies. Caddy gets a certificate for it
+# like any other name, which needs `CNAME www -> SITE_DOMAIN` in DNS: without
+# it the main site still works, and Caddy logs a retry for www until it exists.
+www.{$SITE_DOMAIN} {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	header -Server
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
