@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { api } from "./api";
+import { useT } from "./i18n";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { BrandMark } from "./Logo";
 import { enterAsAdmin } from "./session";
 
@@ -20,15 +22,23 @@ export function SignIn({
   onBack: () => void;
   onSignedIn: () => void;
 }) {
+  const t = useT();
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(
-    expired ? "Your admin key is no longer accepted. It may have been changed. Sign in again." : "",
+  /**
+   * What went wrong, as a key rather than a sentence, so the message follows
+   * the language if it is switched while the error is on screen. A refusal
+   * from the server is already a sentence and is kept as one.
+   */
+  const [error, setError] = useState<{ key?: Parameters<typeof t>[0]; text?: string } | null>(
+    expired ? { key: "signIn.expired" } : null,
   );
+
+  const message = error ? (error.key ? t(error.key) : error.text) : "";
 
   const submit = async () => {
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       await api.checkAdminKey(key);
       enterAsAdmin(key);
@@ -36,10 +46,10 @@ export function SignIn({
     } catch (reason) {
       setError(
         reason instanceof TypeError
-          ? "The server could not be reached. Check your connection and try again."
+          ? { key: "signIn.unreachable" }
           : reason instanceof Error
-            ? reason.message
-            : "Signing in failed.",
+            ? { text: reason.message }
+            : { key: "signIn.failed" },
       );
       setBusy(false);
     }
@@ -55,11 +65,8 @@ export function SignIn({
         }}
       >
         <BrandMark className="sign-in-mark" />
-        <h1>Sign in as admin</h1>
-        <p className="sign-in-hint">
-          Admins can add institutions, instruments, analyses and researchers, connect them, and
-          remove them. Enter the admin key you were given.
-        </p>
+        <h1>{t("signIn.title")}</h1>
+        <p className="sign-in-hint">{t("signIn.hint")}</p>
 
         {/* Lets a password manager file the key under a name and offer it next time. */}
         <input
@@ -71,7 +78,7 @@ export function SignIn({
           hidden
         />
 
-        <label htmlFor="admin-key">Admin key</label>
+        <label htmlFor="admin-key">{t("signIn.keyLabel")}</label>
         <input
           id="admin-key"
           name="password"
@@ -81,30 +88,28 @@ export function SignIn({
           spellCheck={false}
           autoFocus
           required
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "sign-in-error" : undefined}
+          aria-invalid={message ? true : undefined}
+          aria-describedby={message ? "sign-in-error" : undefined}
           onChange={(event) => setKey(event.target.value)}
         />
 
-        {error && (
+        {message && (
           <p id="sign-in-error" className="form-error" role="alert">
-            {error}
+            {message}
           </p>
         )}
 
         <div className="sign-in-actions">
           <button type="submit" className="primary" disabled={busy || key.trim() === ""}>
-            {busy ? "Checking…" : "Sign in"}
+            {busy ? t("signIn.checking") : t("signIn.submit")}
           </button>
           <button type="button" className="link-button" onClick={onBack}>
-            Back
+            {t("common.back")}
           </button>
         </div>
 
-        <p className="sign-in-note">
-          The key is kept only until you close this tab. Without one you can still browse
-          everything as a guest.
-        </p>
+        <p className="sign-in-note">{t("signIn.note")}</p>
+        <LanguageSwitch className="sign-in-lang" />
       </form>
     </main>
   );

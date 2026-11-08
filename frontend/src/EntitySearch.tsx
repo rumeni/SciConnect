@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { useT, type MessageKey } from "./i18n";
 import type { EntityKind, EntityMatch, EntityRef } from "./types";
 
 /** What each kind is called where a result is shown. */
-const KIND_LABEL: Record<EntityKind, string> = {
-  institution: "Institution",
-  researcher: "Researcher",
-  instrument: "Instrument",
-  analysis: "Analysis offering",
-  microorganism: "Target organism",
-  "instrument-type": "Instrument type",
-  "analysis-type": "Analysis type",
+export const KIND_LABEL: Record<EntityKind, MessageKey> = {
+  institution: "kind.institution",
+  researcher: "kind.researcher",
+  instrument: "kind.instrument",
+  analysis: "kind.analysis",
+  microorganism: "kind.microorganism",
+  "instrument-type": "kind.instrument-type",
+  "analysis-type": "kind.analysis-type",
 };
 
 const MIN_LENGTH = 2;
@@ -24,6 +25,7 @@ const DEBOUNCE_MS = 220;
  * one.
  */
 export function EntitySearch({ onOpen }: { onOpen: (ref: EntityRef) => void }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<EntityMatch[] | null>(null);
   const [truncated, setTruncated] = useState(false);
@@ -53,14 +55,14 @@ export function EntitySearch({ onOpen }: { onOpen: (ref: EntityRef) => void }) {
         .catch((reason: unknown) => {
           if (!current) return;
           setMatches([]);
-          setError(reason instanceof Error ? reason.message : "Search failed");
+          setError(reason instanceof Error ? reason.message : t("common.searchFailed"));
         });
     }, DEBOUNCE_MS);
     return () => {
       current = false;
       clearTimeout(timer);
     };
-  }, [term]);
+  }, [term, t]);
 
   // A click anywhere else puts the list away.
   useEffect(() => {
@@ -100,11 +102,11 @@ export function EntitySearch({ onOpen }: { onOpen: (ref: EntityRef) => void }) {
   return (
     <div className="entity-search" ref={box}>
       <label>
-        <span className="visually-hidden">Search everything by name</span>
+        <span className="visually-hidden">{t("find.label")}</span>
         <input
           type="search"
           value={query}
-          placeholder="Search institutions, instruments, analyses, organisms, researchers…"
+          placeholder={t("find.placeholder")}
           autoComplete="off"
           role="combobox"
           aria-expanded={open}
@@ -118,7 +120,7 @@ export function EntitySearch({ onOpen }: { onOpen: (ref: EntityRef) => void }) {
         <div className="entity-results" id="entity-search-results" role="listbox">
           {error && <p className="error">{error}</p>}
           {!error && matches.length === 0 && (
-            <p className="entity-empty">Nothing is named like “{term}”.</p>
+            <p className="entity-empty">{t("find.empty", { term })}</p>
           )}
           {matches.map((match, index) => (
             <button
@@ -131,12 +133,12 @@ export function EntitySearch({ onOpen }: { onOpen: (ref: EntityRef) => void }) {
               onClick={() => choose(match)}
             >
               <span className="entity-label">{highlight(match.label, term)}</span>
-              <em className="entity-kind">{KIND_LABEL[match.kind]}</em>
+              <em className="entity-kind">{t(KIND_LABEL[match.kind])}</em>
               {match.note && <span className="entity-note">{match.note}</span>}
             </button>
           ))}
           {truncated && (
-            <p className="entity-empty">More matches exist. Keep typing to narrow them.</p>
+            <p className="entity-empty">{t("find.more")}</p>
           )}
         </div>
       )}

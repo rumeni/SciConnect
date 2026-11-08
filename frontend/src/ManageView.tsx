@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "./api";
 import { CreateForm, Input, Select } from "./form";
+import { useT, type MessageKey, type Translate } from "./i18n";
 import { CurrentConnections, RemoveRecordForm } from "./Removal";
 import type { Catalogs, InstitutionAnalysis } from "./types";
 
@@ -13,24 +14,26 @@ export function ManageView({
   catalogs: Catalogs;
   onChanged: () => void;
 }) {
+  const t = useT();
+
   return (
     <div className="manage">
       <section>
-        <h2>Catalog entries</h2>
-        <p className="section-hint">
-          Shared vocabulary and organizations. Everything else is attached to these.
-        </p>
+        <h2>{t("manage.catalog")}</h2>
+        <p className="section-hint">{t("manage.catalog.hint")}</p>
         <div className="form-stack">
           <InstitutionForm onChanged={onChanged} />
           <TypeForm
-            title="Instrument type"
-            hint="A normalized concept such as Real-Time PCR System."
+            title={t("manage.instrumentType.title")}
+            hint={t("manage.instrumentType.hint")}
+            submitLabel={t("manage.instrumentType.submit")}
             create={(payload) => api.createInstrumentType(payload)}
             onChanged={onChanged}
           />
           <TypeForm
-            title="Analysis type"
-            hint="A normalized concept such as Whole Genome Sequencing."
+            title={t("manage.analysisType.title")}
+            hint={t("manage.analysisType.hint")}
+            submitLabel={t("manage.analysisType.submit")}
             create={(payload) => api.createAnalysisType(payload)}
             onChanged={onChanged}
           />
@@ -40,10 +43,8 @@ export function ManageView({
       </section>
 
       <section>
-        <h2>Institution capabilities</h2>
-        <p className="section-hint">
-          Concrete instrument units and analysis offerings belonging to one institution.
-        </p>
+        <h2>{t("manage.capabilities")}</h2>
+        <p className="section-hint">{t("manage.capabilities.hint")}</p>
         <div className="form-stack">
           <InstrumentForm catalogs={catalogs} onChanged={onChanged} />
           <AnalysisForm catalogs={catalogs} onChanged={onChanged} />
@@ -51,20 +52,14 @@ export function ManageView({
       </section>
 
       <section>
-        <h2>Connections</h2>
-        <p className="section-hint">
-          An analysis is only searchable through an instrument, organism or researcher once the
-          relationship is stated here. Only records from the same institution can be connected.
-        </p>
+        <h2>{t("manage.connections")}</h2>
+        <p className="section-hint">{t("manage.connections.hint")}</p>
         <ConnectionForms catalogs={catalogs} onChanged={onChanged} />
       </section>
 
       <section>
-        <h2>Removing</h2>
-        <p className="section-hint">
-          Disconnecting ends a relationship and keeps both records. Deleting removes a
-          record, and is refused while anything still depends on it.
-        </p>
+        <h2>{t("manage.removing")}</h2>
+        <p className="section-hint">{t("manage.removing.hint")}</p>
         <div className="form-stack">
           <RemoveRecordForm catalogs={catalogs} onChanged={onChanged} />
         </div>
@@ -73,7 +68,17 @@ export function ManageView({
   );
 }
 
+/** The fixed vocabulary a select offers, each option named in both languages. */
+function options(t: Translate, keys: MessageKey[], values: string[]) {
+  return values.map((value, index) => (
+    <option key={value} value={value}>
+      {t(keys[index])}
+    </option>
+  ));
+}
+
 function InstitutionForm({ onChanged }: { onChanged: () => void }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("");
@@ -84,9 +89,9 @@ function InstitutionForm({ onChanged }: { onChanged: () => void }) {
 
   return (
     <CreateForm
-      title="Institution"
-      hint="The slug comes from the name when left empty. The address is looked up to place the institution on a map."
-      submitLabel="Create institution"
+      title={t("manage.institution.title")}
+      hint={t("manage.institution.hint")}
+      submitLabel={t("manage.institution.submit")}
       onDone={onChanged}
       onSubmit={async () => {
         const created = await api.createInstitution({
@@ -106,22 +111,31 @@ function InstitutionForm({ onChanged }: { onChanged: () => void }) {
         setEmail("");
         setDescription("");
         return created.latitude === null
-          ? `Created ${created.name}, but the address could not be placed on a map`
-          : `Created ${created.name}`;
+          ? t("manage.institution.createdNoMap", { name: created.name })
+          : t("manage.institution.created", { name: created.name });
       }}
     >
-      <Input label="Name" value={name} onChange={setName} required />
+      <Input label={t("manage.field.name")} value={name} onChange={setName} required />
       <Input
-        label="Street address"
+        label={t("manage.field.address")}
         value={address}
         onChange={setAddress}
-        placeholder="Bulevar oslobodjenja 18"
+        placeholder={t("manage.field.addressPlaceholder")}
       />
-      <Input label="City" value={city} onChange={setCity} required />
-      <Input label="Country" value={country} onChange={setCountry} required />
-      <Input label="Website" value={website} onChange={setWebsite} />
-      <Input label="Contact email" value={email} onChange={setEmail} type="email" />
-      <Input label="Description" value={description} onChange={setDescription} />
+      <Input label={t("manage.field.city")} value={city} onChange={setCity} required />
+      <Input label={t("manage.field.country")} value={country} onChange={setCountry} required />
+      <Input label={t("manage.field.website")} value={website} onChange={setWebsite} />
+      <Input
+        label={t("manage.field.contactEmail")}
+        value={email}
+        onChange={setEmail}
+        type="email"
+      />
+      <Input
+        label={t("manage.field.description")}
+        value={description}
+        onChange={setDescription}
+      />
     </CreateForm>
   );
 }
@@ -129,14 +143,17 @@ function InstitutionForm({ onChanged }: { onChanged: () => void }) {
 function TypeForm({
   title,
   hint,
+  submitLabel,
   create,
   onChanged,
 }: {
   title: string;
   hint: string;
+  submitLabel: string;
   create: (payload: unknown) => Promise<{ name: string }>;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
@@ -144,31 +161,36 @@ function TypeForm({
     <CreateForm
       title={title}
       hint={hint}
-      submitLabel={`Create ${title.toLowerCase()}`}
+      submitLabel={submitLabel}
       onDone={onChanged}
       onSubmit={async () => {
         const created = await create({ name, description: blank(description) });
         setName("");
         setDescription("");
-        return `Created ${created.name}`;
+        return t("manage.created", { name: created.name });
       }}
     >
-      <Input label="Name" value={name} onChange={setName} required />
-      <Input label="Description" value={description} onChange={setDescription} />
+      <Input label={t("manage.field.name")} value={name} onChange={setName} required />
+      <Input
+        label={t("manage.field.description")}
+        value={description}
+        onChange={setDescription}
+      />
     </CreateForm>
   );
 }
 
 function MicroorganismForm({ onChanged }: { onChanged: () => void }) {
+  const t = useT();
   const [scientificName, setScientificName] = useState("");
   const [commonName, setCommonName] = useState("");
   const [description, setDescription] = useState("");
 
   return (
     <CreateForm
-      title="Target organism"
-      hint="A microorganism an analysis can detect, identify or otherwise process."
-      submitLabel="Create organism"
+      title={t("manage.organism.title")}
+      hint={t("manage.organism.hint")}
+      submitLabel={t("manage.organism.submit")}
       onDone={onChanged}
       onSubmit={async () => {
         const created = await api.createMicroorganism({
@@ -179,17 +201,25 @@ function MicroorganismForm({ onChanged }: { onChanged: () => void }) {
         setScientificName("");
         setCommonName("");
         setDescription("");
-        return `Created ${created.scientific_name}`;
+        return t("manage.created", { name: created.scientific_name });
       }}
     >
       <Input
-        label="Scientific name"
+        label={t("manage.field.scientificName")}
         value={scientificName}
         onChange={setScientificName}
         required
       />
-      <Input label="Common name" value={commonName} onChange={setCommonName} />
-      <Input label="Description" value={description} onChange={setDescription} />
+      <Input
+        label={t("manage.field.commonName")}
+        value={commonName}
+        onChange={setCommonName}
+      />
+      <Input
+        label={t("manage.field.description")}
+        value={description}
+        onChange={setDescription}
+      />
     </CreateForm>
   );
 }
@@ -201,6 +231,7 @@ function ResearcherForm({
   catalogs: Catalogs;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [institutionId, setInstitutionId] = useState("");
   const [fullName, setFullName] = useState("");
   const [title, setTitle] = useState("");
@@ -210,9 +241,9 @@ function ResearcherForm({
 
   return (
     <CreateForm
-      title="Researcher"
-      hint="A researcher belongs to exactly one institution."
-      submitLabel="Create researcher"
+      title={t("manage.researcher.title")}
+      hint={t("manage.researcher.hint")}
+      submitLabel={t("manage.researcher.submit")}
       onDone={onChanged}
       onSubmit={async () => {
         const created = await api.createResearcher({
@@ -228,14 +259,14 @@ function ResearcherForm({
         setEmail("");
         setOrcid("");
         setExpertise("");
-        return `Created ${created.full_name}`;
+        return t("manage.created", { name: created.full_name });
       }}
     >
       <Select
-        label="Institution"
+        label={t("manage.field.institution")}
         value={institutionId}
         onChange={setInstitutionId}
-        placeholder="Select an institution"
+        placeholder={t("manage.pick.institution")}
         required
       >
         {catalogs.institutions.map((item) => (
@@ -244,11 +275,30 @@ function ResearcherForm({
           </option>
         ))}
       </Select>
-      <Input label="Full name" value={fullName} onChange={setFullName} required />
-      <Input label="Title" value={title} onChange={setTitle} placeholder="Research Associate" />
-      <Input label="Email" value={email} onChange={setEmail} type="email" />
-      <Input label="ORCID" value={orcid} onChange={setOrcid} placeholder="0000-0002-…" />
-      <Input label="Expertise" value={expertise} onChange={setExpertise} />
+      <Input
+        label={t("manage.field.fullName")}
+        value={fullName}
+        onChange={setFullName}
+        required
+      />
+      <Input
+        label={t("manage.field.title")}
+        value={title}
+        onChange={setTitle}
+        placeholder={t("manage.field.titlePlaceholder")}
+      />
+      <Input label={t("manage.field.email")} value={email} onChange={setEmail} type="email" />
+      <Input
+        label={t("manage.field.orcid")}
+        value={orcid}
+        onChange={setOrcid}
+        placeholder="0000-0002-…"
+      />
+      <Input
+        label={t("manage.field.expertise")}
+        value={expertise}
+        onChange={setExpertise}
+      />
     </CreateForm>
   );
 }
@@ -260,6 +310,7 @@ function InstrumentForm({
   catalogs: Catalogs;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [institutionId, setInstitutionId] = useState("");
   const [typeId, setTypeId] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -269,9 +320,9 @@ function InstrumentForm({
 
   return (
     <CreateForm
-      title="Institution instrument"
-      hint="A concrete instrument unit owned by one institution."
-      submitLabel="Create instrument"
+      title={t("manage.instrument.title")}
+      hint={t("manage.instrument.hint")}
+      submitLabel={t("manage.instrument.submit")}
       onDone={onChanged}
       onSubmit={async () => {
         await api.createInstitutionInstrument({
@@ -285,14 +336,14 @@ function InstrumentForm({
         setDisplayName("");
         setManufacturer("");
         setModel("");
-        return "Instrument added to the institution";
+        return t("manage.instrument.created");
       }}
     >
       <Select
-        label="Institution"
+        label={t("manage.field.institution")}
         value={institutionId}
         onChange={setInstitutionId}
-        placeholder="Select an institution"
+        placeholder={t("manage.pick.institution")}
         required
       >
         {catalogs.institutions.map((item) => (
@@ -302,10 +353,10 @@ function InstrumentForm({
         ))}
       </Select>
       <Select
-        label="Instrument type"
+        label={t("manage.field.instrumentType")}
         value={typeId}
         onChange={setTypeId}
-        placeholder="Select a type"
+        placeholder={t("manage.pick.type")}
         required
       >
         {catalogs.instrumentTypes.map((item) => (
@@ -314,20 +365,35 @@ function InstrumentForm({
           </option>
         ))}
       </Select>
-      <Input label="Display name" value={displayName} onChange={setDisplayName} />
-      <Input label="Manufacturer" value={manufacturer} onChange={setManufacturer} />
-      <Input label="Model" value={model} onChange={setModel} />
-      <Select label="Status" value={status} onChange={setStatus} placeholder={null}>
-        <option value="operational">operational</option>
-        <option value="maintenance">maintenance</option>
-        <option value="unavailable">unavailable</option>
-        <option value="archived">archived</option>
+      <Input
+        label={t("manage.field.displayName")}
+        value={displayName}
+        onChange={setDisplayName}
+      />
+      <Input
+        label={t("manage.field.manufacturer")}
+        value={manufacturer}
+        onChange={setManufacturer}
+      />
+      <Input label={t("manage.field.model")} value={model} onChange={setModel} />
+      <Select
+        label={t("manage.field.status")}
+        value={status}
+        onChange={setStatus}
+        placeholder={null}
+      >
+        {options(
+          t,
+          ["status.operational", "status.maintenance", "status.unavailable", "status.archived"],
+          ["operational", "maintenance", "unavailable", "archived"],
+        )}
       </Select>
     </CreateForm>
   );
 }
 
 function AnalysisForm({ catalogs, onChanged }: { catalogs: Catalogs; onChanged: () => void }) {
+  const t = useT();
   const [institutionId, setInstitutionId] = useState("");
   const [typeId, setTypeId] = useState("");
   const [publicName, setPublicName] = useState("");
@@ -337,9 +403,9 @@ function AnalysisForm({ catalogs, onChanged }: { catalogs: Catalogs; onChanged: 
 
   return (
     <CreateForm
-      title="Institution analysis"
-      hint="A concrete service offered by one institution. One offering per analysis type."
-      submitLabel="Create analysis offering"
+      title={t("manage.analysis.title")}
+      hint={t("manage.analysis.hint")}
+      submitLabel={t("manage.analysis.submit")}
       onDone={onChanged}
       onSubmit={async () => {
         await api.createInstitutionAnalysis({
@@ -353,14 +419,14 @@ function AnalysisForm({ catalogs, onChanged }: { catalogs: Catalogs; onChanged: 
         setPublicName("");
         setTurnaround("");
         setDescription("");
-        return "Analysis offering created";
+        return t("manage.analysis.created");
       }}
     >
       <Select
-        label="Institution"
+        label={t("manage.field.institution")}
         value={institutionId}
         onChange={setInstitutionId}
-        placeholder="Select an institution"
+        placeholder={t("manage.pick.institution")}
         required
       >
         {catalogs.institutions.map((item) => (
@@ -370,10 +436,10 @@ function AnalysisForm({ catalogs, onChanged }: { catalogs: Catalogs; onChanged: 
         ))}
       </Select>
       <Select
-        label="Analysis type"
+        label={t("manage.field.analysisType")}
         value={typeId}
         onChange={setTypeId}
-        placeholder="Select a type"
+        placeholder={t("manage.pick.type")}
         required
       >
         {catalogs.analysisTypes.map((item) => (
@@ -382,26 +448,35 @@ function AnalysisForm({ catalogs, onChanged }: { catalogs: Catalogs; onChanged: 
           </option>
         ))}
       </Select>
-      <Input label="Public name" value={publicName} onChange={setPublicName} />
       <Input
-        label="Turnaround days"
+        label={t("manage.field.publicName")}
+        value={publicName}
+        onChange={setPublicName}
+      />
+      <Input
+        label={t("manage.field.turnaround")}
         value={turnaround}
         onChange={setTurnaround}
         type="number"
-        placeholder="optional"
+        placeholder={t("manage.field.optional")}
       />
       <Select
-        label="Availability"
+        label={t("manage.field.availability")}
         value={availability}
         onChange={setAvailability}
         placeholder={null}
       >
-        <option value="available">available</option>
-        <option value="limited">limited</option>
-        <option value="unavailable">unavailable</option>
-        <option value="archived">archived</option>
+        {options(
+          t,
+          ["status.available", "status.limited", "status.unavailable", "status.archived"],
+          ["available", "limited", "unavailable", "archived"],
+        )}
       </Select>
-      <Input label="Description" value={description} onChange={setDescription} />
+      <Input
+        label={t("manage.field.description")}
+        value={description}
+        onChange={setDescription}
+      />
     </CreateForm>
   );
 }
@@ -413,6 +488,7 @@ function ConnectionForms({
   catalogs: Catalogs;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [analysisId, setAnalysisId] = useState("");
   // Adding a connection has to reach the list of current connections too, which
   // reads the offering directly rather than through the shared catalogs.
@@ -428,8 +504,10 @@ function ConnectionForms({
   const analysisLabel = (item: InstitutionAnalysis) => {
     const institution = catalogs.institutions.find((entry) => entry.id === item.institution_id);
     const type = catalogs.analysisTypes.find((entry) => entry.id === item.analysis_type_id);
-    return `${institution?.name ?? `Institution ${item.institution_id}`} — ${
-      item.public_name || type?.name || `Analysis ${item.id}`
+    return `${
+      institution?.name ?? t("connect.unnamedInstitution", { id: item.institution_id })
+    } — ${
+      item.public_name || type?.name || t("connect.unnamedAnalysis", { id: item.id })
     }`;
   };
 
@@ -444,10 +522,10 @@ function ConnectionForms({
     <>
       <div className="picker">
         <Select
-          label="Analysis offering to connect"
+          label={t("connect.picker")}
           value={analysisId}
           onChange={setAnalysisId}
-          placeholder="Select an analysis offering"
+          placeholder={t("manage.pick.offering")}
         >
           {catalogs.institutionAnalyses.map((item) => (
             <option key={item.id} value={item.id}>
@@ -458,67 +536,71 @@ function ConnectionForms({
       </div>
 
       {!analysis ? (
-        <p className="empty">Select an analysis offering to connect it to other records.</p>
+        <p className="empty">{t("connect.pickFirst")}</p>
       ) : (
         <div className="form-stack">
           <LinkForm
-            title="Use an instrument"
-            hint="Only instruments owned by the same institution can be used."
-            submitLabel="Link instrument"
+            title={t("connect.instrument.title")}
+            hint={t("connect.instrument.hint")}
+            submitLabel={t("connect.instrument.submit")}
             options={ownInstruments.map((item) => ({
               value: String(item.id),
-              label: `${item.display_name || `Instrument ${item.id}`} (${item.status})`,
+              label: `${
+                item.display_name || t("connect.unnamedInstrument", { id: item.id })
+              } (${item.status})`,
             }))}
-            optionLabel="Instrument"
-            optionPlaceholder="Select an instrument"
-            emptyMessage="This institution has no instruments yet."
+            optionLabel={t("search.instrument")}
+            optionPlaceholder={t("manage.pick.instrument")}
+            emptyMessage={t("connect.instrument.empty")}
             roles={["required", "optional", "alternative"]}
-            roleLabel="Usage"
+            roleKeys={["role.required", "role.optional", "role.alternative"]}
+            roleLabel={t("manage.field.usage")}
             onSubmit={(id, usage) =>
               api
                 .linkInstrument(analysis.id, {
                   institution_instrument_id: Number(id),
                   usage,
                 })
-                .then(() => "Instrument linked")
+                .then(() => t("connect.instrument.done"))
             }
             onChanged={noteChange}
           />
           <LinkForm
-            title="Detect a target organism"
-            hint="States that this offering can process the organism."
-            submitLabel="Link organism"
+            title={t("connect.organism.title")}
+            hint={t("connect.organism.hint")}
+            submitLabel={t("connect.organism.submit")}
             options={catalogs.microorganisms.map((item) => ({
               value: String(item.id),
               label: item.scientific_name,
             }))}
-            optionLabel="Target organism"
-            optionPlaceholder="Select a target organism"
-            emptyMessage="No organisms in the catalog yet."
+            optionLabel={t("search.organism")}
+            optionPlaceholder={t("manage.pick.organism")}
+            emptyMessage={t("connect.organism.empty")}
             onSubmit={(id) =>
               api
                 .linkTarget(analysis.id, { microorganism_id: Number(id) })
-                .then(() => "Target organism linked")
+                .then(() => t("connect.organism.done"))
             }
             onChanged={noteChange}
           />
           <LinkForm
-            title="Assign a researcher"
-            hint="Only researchers of the same institution can be assigned."
-            submitLabel="Link researcher"
+            title={t("connect.researcher.title")}
+            hint={t("connect.researcher.hint")}
+            submitLabel={t("connect.researcher.submit")}
             options={ownResearchers.map((item) => ({
               value: String(item.id),
               label: item.title ? `${item.full_name} — ${item.title}` : item.full_name,
             }))}
-            optionLabel="Researcher"
-            optionPlaceholder="Select a researcher"
-            emptyMessage="This institution has no researchers yet."
+            optionLabel={t("search.researcher")}
+            optionPlaceholder={t("manage.pick.researcher")}
+            emptyMessage={t("connect.researcher.empty")}
             roles={["lead", "contributor", "contact"]}
-            roleLabel="Role"
+            roleKeys={["role.lead", "role.contributor", "role.contact"]}
+            roleLabel={t("manage.field.role")}
             onSubmit={(id, role) =>
               api
                 .linkResearcher(analysis.id, { researcher_id: Number(id), role })
-                .then(() => "Researcher linked")
+                .then(() => t("connect.researcher.done"))
             }
             onChanged={noteChange}
           />
@@ -537,11 +619,12 @@ function LinkForm({
   title,
   hint,
   submitLabel,
-  options,
+  options: choices,
   optionLabel,
   optionPlaceholder,
   emptyMessage,
   roles,
+  roleKeys,
   roleLabel,
   onSubmit,
   onChanged,
@@ -553,15 +636,19 @@ function LinkForm({
   optionLabel: string;
   optionPlaceholder: string;
   emptyMessage: string;
+  /** The values the API expects, which are never translated. */
   roles?: string[];
+  /** How each of those values is shown, in the same order. */
+  roleKeys?: MessageKey[];
   roleLabel?: string;
   onSubmit: (id: string, role: string) => Promise<string>;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [selected, setSelected] = useState("");
   const [role, setRole] = useState(roles?.[0] ?? "");
 
-  if (options.length === 0) {
+  if (choices.length === 0) {
     return (
       <div className="card-form">
         <h3>{title}</h3>
@@ -589,17 +676,22 @@ function LinkForm({
         placeholder={optionPlaceholder}
         required
       >
-        {options.map((item) => (
+        {choices.map((item) => (
           <option key={item.value} value={item.value}>
             {item.label}
           </option>
         ))}
       </Select>
       {roles && (
-        <Select label={roleLabel ?? "Role"} value={role} onChange={setRole} placeholder={null}>
-          {roles.map((item) => (
+        <Select
+          label={roleLabel ?? t("manage.field.role")}
+          value={role}
+          onChange={setRole}
+          placeholder={null}
+        >
+          {roles.map((item, index) => (
             <option key={item} value={item}>
-              {item}
+              {roleKeys ? t(roleKeys[index]) : item}
             </option>
           ))}
         </Select>

@@ -1,5 +1,6 @@
+import { useT } from "./i18n";
 import { NearbyMap } from "./NearbyMap";
-import { formatDistance, sortByDistance } from "./viewerLocation";
+import { formatDistance, placeName, sortByDistance } from "./viewerLocation";
 import type { EntityRef, InstitutionMapPoint, ViewerLocation } from "./types";
 
 export function NearbyView({
@@ -15,16 +16,15 @@ export function NearbyView({
   onAsk: () => void;
   onForget: () => void;
 }) {
+  const t = useT();
+
   if (!location) {
     return (
       <section className="nearby">
-        <h2>Institutions near you</h2>
-        <p className="section-hint">
-          Share a location and the catalogue is drawn on a map around it, nearest first.
-          Nothing is shared until you choose to.
-        </p>
+        <h2>{t("nearby.title")}</h2>
+        <p className="section-hint">{t("nearby.intro")}</p>
         <button type="button" className="primary" onClick={onAsk}>
-          Share a location
+          {t("nearby.share")}
         </button>
       </section>
     );
@@ -35,19 +35,17 @@ export function NearbyView({
   return (
     <section className="nearby">
       <div className="results-heading">
-        <h2>Institutions near you</h2>
-        <span>{ranked.length} placed on the map</span>
+        <h2>{t("nearby.title")}</h2>
+        <span>{t("nearby.placed", { count: ranked.length })}</span>
       </div>
 
       <p className="section-hint">
-        Measured from {location.label}.{" "}
-        {location.source === "device"
-          ? "This position stays in your browser."
-          : "Only the address you typed was sent to the server."}
+        {t("nearby.measuredFrom", { place: placeName(location, t) })}{" "}
+        {location.source === "device" ? t("nearby.deviceNote") : t("nearby.addressNote")}
       </p>
 
       {ranked.length === 0 ? (
-        <p className="empty">No institution in the catalogue has a location yet.</p>
+        <p className="empty">{t("nearby.none")}</p>
       ) : (
         <>
           <NearbyMap origin={location} institutions={ranked} onOpen={onOpen} />
@@ -60,7 +58,7 @@ export function NearbyView({
                   onClick={() => onOpen({ kind: "institution", id: institution.id })}
                 >
                   <span className="link-label">{institution.name}</span>
-                  <em className="role">{formatDistance(institution.distanceKm)}</em>
+                  <em className="role">{formatDistance(institution.distanceKm, t)}</em>
                   <span className="link-note">
                     {institution.address
                       ? `${institution.address}, ${institution.city}`
@@ -75,10 +73,10 @@ export function NearbyView({
 
       <div className="nearby-actions">
         <button type="button" className="secondary" onClick={onAsk}>
-          Use a different location
+          {t("nearby.different")}
         </button>
         <button type="button" className="link-button" onClick={onForget}>
-          Forget my location
+          {t("nearby.forget")}
         </button>
       </div>
     </section>

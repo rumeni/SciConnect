@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, loadCatalogs } from "./api";
+import { useT } from "./i18n";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./Logo";
 import { DetailPanel } from "./DetailPanel";
 import { EntitySearch } from "./EntitySearch";
@@ -60,6 +62,7 @@ export function Workspace({
   onSignIn: () => void;
   onLeave: () => void;
 }) {
+  const t = useT();
   const canEdit = role === "admin";
   const [view, setView] = useState<View>("search");
   const [catalogs, setCatalogs] = useState<Catalogs>(emptyCatalogs);
@@ -100,11 +103,11 @@ export function Workspace({
       );
     } catch (reason) {
       if (ticket !== latestSearch.current) return;
-      setError(reason instanceof Error ? reason.message : "Search failed");
+      setError(reason instanceof Error ? reason.message : t("common.searchFailed"));
     } finally {
       if (ticket === latestSearch.current) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // Each filter offers only values that still lead somewhere, so the options
   // are recomputed whenever a selection changes.
@@ -136,7 +139,7 @@ export function Workspace({
       setCatalogs(loaded);
       setMapPoints(points);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "API is unavailable");
+      setError(reason instanceof Error ? reason.message : t("common.apiUnavailable"));
       setLoading(false);
       return;
     }
@@ -194,48 +197,60 @@ export function Workspace({
   return (
     <main>
       <header className="workspace-head">
-        <Brand />
+        <Brand
+          onHome={
+            // A guest goes back to the start page, as "Start page" does. For an
+            // admin that would mean signing out, so the logo only returns to
+            // the first view instead.
+            canEdit
+              ? () => {
+                  setView("search");
+                  window.scrollTo(0, 0);
+                }
+              : onLeave
+          }
+        />
         <div className={canEdit ? "session-bar admin" : "session-bar"}>
           {canEdit ? (
             <>
               <p>
-                <strong>Admin</strong> You can add, connect and remove records.
+                <strong>{t("workspace.admin")}</strong> {t("workspace.adminNote")}
               </p>
               <button type="button" className="secondary" onClick={onLeave}>
-                Sign out
+                {t("workspace.signOut")}
               </button>
             </>
           ) : (
             <>
               <p>
-                <strong>Guest</strong> You can search and open every record. Changes need an
-                admin.
+                <strong>{t("workspace.guest")}</strong> {t("workspace.guestNote")}
               </p>
               <button type="button" className="secondary" onClick={onSignIn}>
-                Sign in as admin
+                {t("workspace.signIn")}
               </button>
               <button type="button" className="link-button" onClick={onLeave}>
-                Start page
+                {t("workspace.startPage")}
               </button>
             </>
           )}
+          <LanguageSwitch />
         </div>
       </header>
 
-      <nav className="tabs" aria-label="Views">
+      <nav className="tabs" aria-label={t("workspace.views")}>
         <button
           type="button"
           className={view === "search" ? "tab active" : "tab"}
           onClick={() => setView("search")}
         >
-          Search
+          {t("workspace.tab.search")}
         </button>
         <button
           type="button"
           className={view === "nearby" ? "tab active" : "tab"}
           onClick={showNearby}
         >
-          Near me
+          {t("workspace.tab.nearby")}
         </button>
         {canEdit && (
           <button
@@ -243,7 +258,7 @@ export function Workspace({
             className={view === "contribute" ? "tab active" : "tab"}
             onClick={() => setView("contribute")}
           >
-            Add &amp; connect
+            {t("workspace.tab.contribute")}
           </button>
         )}
       </nav>

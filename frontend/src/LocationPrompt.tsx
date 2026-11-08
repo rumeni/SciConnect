@@ -1,5 +1,6 @@
 import { FormEvent, useRef, useState } from "react";
 import { api } from "./api";
+import { useT } from "./i18n";
 import { useDialog } from "./useDialog";
 import { requestDeviceLocation, shortenPlaceName } from "./viewerLocation";
 import type { ViewerLocation } from "./types";
@@ -18,6 +19,7 @@ export function LocationPrompt({
   onShare: (location: ViewerLocation) => void;
   onDismiss: () => void;
 }) {
+  const t = useT();
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState<"device" | "address" | null>(null);
   const [error, setError] = useState("");
@@ -30,7 +32,7 @@ export function LocationPrompt({
     try {
       onShare(await requestDeviceLocation());
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not read your location.");
+      setError(reason instanceof Error ? reason.message : t("prompt.readFailed"));
     } finally {
       setBusy(null);
     }
@@ -49,7 +51,7 @@ export function LocationPrompt({
         source: "address",
       });
     } catch {
-      setError("That address could not be found. Try adding the city or country.");
+      setError(t("prompt.notFound"));
     } finally {
       setBusy(null);
     }
@@ -66,13 +68,9 @@ export function LocationPrompt({
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
-        <p className="eyebrow">Institutions near you</p>
-        <h2 id="location-prompt-title">Share where you are?</h2>
-        <p className="prompt-intro">
-          If you share a location, the institutions in the catalogue are shown on a map
-          around it, nearest first. You can search the whole catalogue without sharing
-          anything.
-        </p>
+        <p className="eyebrow">{t("prompt.eyebrow")}</p>
+        <h2 id="location-prompt-title">{t("prompt.title")}</h2>
+        <p className="prompt-intro">{t("prompt.intro")}</p>
 
         <div className="prompt-choice">
           <button
@@ -81,21 +79,18 @@ export function LocationPrompt({
             onClick={() => void useDevice()}
             disabled={busy !== null}
           >
-            {busy === "device" ? "Waiting for your browser…" : "Use my device location"}
+            {busy === "device" ? t("prompt.waiting") : t("prompt.useDevice")}
           </button>
-          <small>
-            Your browser will ask for permission. The position stays in this browser and is
-            never sent to the server.
-          </small>
+          <small>{t("prompt.deviceNote")}</small>
         </div>
 
         <form className="prompt-choice" onSubmit={useAddress}>
           <label>
-            <span>Or enter an address</span>
+            <span>{t("prompt.addressLabel")}</span>
             <input
               type="text"
               value={address}
-              placeholder="Knez Mihailova 1, Belgrade"
+              placeholder={t("prompt.addressPlaceholder")}
               onChange={(event) => setAddress(event.target.value)}
             />
           </label>
@@ -104,20 +99,18 @@ export function LocationPrompt({
             className="secondary"
             disabled={busy !== null || address.trim().length < 3}
           >
-            {busy === "address" ? "Looking it up…" : "Use this address"}
+            {busy === "address" ? t("prompt.lookingUp") : t("prompt.useAddress")}
           </button>
-          <small>
-            The address you type is sent to the server to be looked up on OpenStreetMap.
-          </small>
+          <small>{t("prompt.addressNote")}</small>
         </form>
 
         {error && <p className="error">{error}</p>}
 
         <div className="prompt-footer">
           <button type="button" className="link-button" onClick={onDismiss}>
-            No thanks
+            {t("prompt.noThanks")}
           </button>
-          <small>You can change this later from the “Near me” tab.</small>
+          <small>{t("prompt.footer")}</small>
         </div>
       </div>
     </div>

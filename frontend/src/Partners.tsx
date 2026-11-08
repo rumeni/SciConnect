@@ -1,3 +1,5 @@
+import { useT } from "./i18n";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./Logo";
 import { PARTNER_GROUPS, type Partner } from "./partnerList";
 
@@ -7,40 +9,57 @@ import { PARTNER_GROUPS, type Partner } from "./partnerList";
  * A group with no members is left out, and with nobody listed at all the page
  * says the list is on its way rather than showing empty headings.
  */
-export function Partners({ onHome }: { onHome: () => void }) {
+export function Partners({
+  onHome,
+  onContact,
+}: {
+  onHome: () => void;
+  onContact: () => void;
+}) {
+  const t = useT();
   const groups = PARTNER_GROUPS.filter((group) => group.members.length > 0);
 
   return (
     <main className="partners">
       <header className="landing-head">
-        <Brand />
-        <a
-          className="link-button"
-          href="/"
-          onClick={(event) => {
-            event.preventDefault();
-            onHome();
-          }}
-        >
-          Back to SciConnect
-        </a>
+        <Brand onHome={onHome} />
+        <div className="head-actions">
+          <LanguageSwitch />
+          <a
+            className="link-button"
+            href="/"
+            onClick={(event) => {
+              event.preventDefault();
+              onHome();
+            }}
+          >
+            {t("partners.home")}
+          </a>
+          <a
+            className="primary contact-link"
+            href="/kontakt"
+            onClick={(event) => {
+              event.preventDefault();
+              onContact();
+            }}
+          >
+            {t("landing.contact")}
+          </a>
+        </div>
       </header>
 
       <section className="partners-intro">
-        <h1 className="landing-title">Partners &amp; Supporters</h1>
-        <p className="landing-lede">
-          SciConnect is built with the help of institutions and organizations that believe
-          research capability should be easy to find.
-        </p>
+        <h1 className="landing-title">{t("partners.title")}</h1>
+        <p className="landing-lede">{t("partners.lede")}</p>
       </section>
 
       {groups.length === 0 ? (
-        <p className="partners-empty">Our partners and supporters will be listed here soon.</p>
+        <p className="partners-empty">{t("partners.empty")}</p>
       ) : (
         groups.map((group) => (
           <section className="partner-group" key={group.title}>
-            <h2>{group.title}</h2>
-            <p className="section-hint">{group.hint}</p>
+            <h2>{t(group.title)}</h2>
+            <p className="section-hint">{t(group.hint)}</p>
             <ul className="partner-list">
               {group.members.map((partner) => (
                 <li key={partner.name}>

@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useT } from "./i18n";
 import { addBaseLayer, institutionMarker, popupNode, viewerMarker } from "./mapLayer";
-import { formatDistance, type NearbyInstitution } from "./viewerLocation";
+import { formatDistance, placeName, type NearbyInstitution } from "./viewerLocation";
 import type { EntityRef, ViewerLocation } from "./types";
 
 /** A zoomable map of the catalogue around one point, nearest institutions marked. */
@@ -15,11 +16,16 @@ export function NearbyMap({
   institutions: NearbyInstitution[];
   onOpen: (ref: EntityRef) => void;
 }) {
+  const t = useT();
+  const originLabel = placeName(origin, t);
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   // Read inside Leaflet popup handlers, which outlive the render that made them.
   const open = useRef(onOpen);
   open.current = onOpen;
+  // Popups are built imperatively, so the translator is read the same way.
+  const say = useRef(t);
+  say.current = t;
 
   useEffect(() => {
     if (!container.current || map.current) return;
@@ -38,7 +44,7 @@ export function NearbyMap({
 
     const drawn: L.Layer[] = [];
     const here = viewerMarker(origin.latitude, origin.longitude)
-      .bindPopup(popupNode(origin.label))
+      .bindPopup(popupNode(originLabel))
       .addTo(instance);
     drawn.push(here);
 
@@ -54,7 +60,10 @@ export function NearbyMap({
       name.textContent = institution.name;
       name.onclick = () => open.current({ kind: "institution", id: institution.id });
       const note = document.createElement("small");
-      note.textContent = `${institution.city} · ${formatDistance(institution.distanceKm)}`;
+      note.textContent = `${institution.city} · ${formatDistance(
+        institution.distanceKm,
+        say.current,
+      )}`;
       popup.append(name, note);
       marker.bindPopup(popup);
       drawn.push(marker);
@@ -72,7 +81,7 @@ export function NearbyMap({
     return () => {
       drawn.forEach((layer) => layer.remove());
     };
-  }, [origin.latitude, origin.longitude, origin.label, institutions]);
+  }, [origin.latitude, origin.longitude, originLabel, institutions]);
 
   return (
     <div className="map-wrap">
@@ -80,10 +89,10 @@ export function NearbyMap({
         className="map map-tall"
         ref={container}
         role="application"
-        aria-label="Map of institutions near you"
+        aria-label={t("nearby.mapLabel")}
       />
       <div className="map-hint">
-        <span>{origin.label}</span>
+        <span>{originLabel}</span>
         <button
           type="button"
           className="link-button"
@@ -91,7 +100,7 @@ export function NearbyMap({
             map.current?.setView([origin.latitude, origin.longitude], 12)
           }
         >
-          Recenter
+          {t("common.recenter")}
         </button>
       </div>
     </div>

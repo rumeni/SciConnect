@@ -17,7 +17,12 @@ import type {
   Researcher,
   SearchResponse,
 } from "./types";
+import { getLang, translate, type MessageKey } from "./i18n";
 import { adminKey, expire } from "./session";
+
+/** Said in whichever language the tab is showing when the request fails. */
+const say = (key: MessageKey, values?: Record<string, string | number>) =>
+  translate(getLang(), key, values);
 
 declare global {
   interface Window {
@@ -63,14 +68,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  */
 async function describeFailure(response: Response): Promise<string> {
   if (response.status === 401) {
-    return adminKey()
-      ? "Your admin key is no longer accepted. Sign in again."
-      : "Changing the catalog needs an admin key. Sign in as admin.";
+    return adminKey() ? say("api.keyExpired") : say("api.keyNeeded");
   }
   if (response.status === 429) {
     const seconds = Number(response.headers.get("Retry-After") ?? 0);
-    const wait = seconds > 0 ? ` Try again in ${seconds} second${seconds === 1 ? "" : "s"}.` : "";
-    return `Too many requests in a short time.${wait}`;
+    const wait = seconds > 0 ? ` ${say("api.retry", { seconds })}` : "";
+    return `${say("api.tooMany")}${wait}`;
   }
   return readError(response);
 }
@@ -89,7 +92,7 @@ async function readError(response: Response): Promise<string> {
   } catch {
     /* fall through to the status code */
   }
-  return `Request failed (${response.status})`;
+  return say("api.requestFailed", { status: response.status });
 }
 
 function asQuery(filters: Record<string, string>): URLSearchParams {
@@ -134,7 +137,7 @@ export const api = {
       headers: { "X-Admin-Token": key.trim() },
     });
     if (response.status === 401) {
-      throw new ApiError("That admin key is not right.", 401);
+      throw new ApiError(say("api.keyWrong"), 401);
     }
     if (!response.ok) {
       throw new ApiError(await describeFailure(response), response.status);

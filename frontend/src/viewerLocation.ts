@@ -1,3 +1,4 @@
+import { getLang, translate, type Translate } from "./i18n";
 import type { InstitutionMapPoint, ViewerLocation } from "./types";
 
 const PLACE_KEY = "sciconnect.viewer-location";
@@ -57,9 +58,10 @@ export function rememberAsked(): void {
 
 /** Ask the browser for the device position. Requires a user gesture to be useful. */
 export function requestDeviceLocation(): Promise<ViewerLocation> {
+  const say = (key: Parameters<typeof translate>[1]) => translate(getLang(), key);
   return new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) {
-      reject(new Error("This browser cannot share a location."));
+      reject(new Error(say("nearby.noGeolocation")));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -67,20 +69,33 @@ export function requestDeviceLocation(): Promise<ViewerLocation> {
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-          label: "Your device location",
+          // Stored, so it is written in whichever language was in use. It is
+          // never shown: `placeName` translates it afresh on every render.
+          label: say("nearby.deviceLabel"),
           source: "device",
         }),
       (error) =>
         reject(
           new Error(
             error.code === error.PERMISSION_DENIED
-              ? "Location permission was declined."
-              : "Your location could not be determined.",
+              ? say("nearby.denied")
+              : say("nearby.unknown"),
           ),
         ),
       { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 },
     );
   });
+}
+
+/**
+ * What to call the point distances are measured from.
+ *
+ * A typed address is the visitor's own words and stands as it is; the device
+ * position has no name of its own, so it is named in the current language
+ * rather than in the one it was shared in.
+ */
+export function placeName(location: ViewerLocation, t: Translate): string {
+  return location.source === "device" ? t("nearby.deviceLabel") : location.label;
 }
 
 /**
@@ -121,8 +136,8 @@ export function sortByDistance(
     .sort((left, right) => left.distanceKm - right.distanceKm);
 }
 
-export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} m away`;
-  if (km < 10) return `${km.toFixed(1)} km away`;
-  return `${Math.round(km)} km away`;
+export function formatDistance(km: number, t: Translate): string {
+  if (km < 1) return t("nearby.metres", { value: Math.round(km * 1000) });
+  if (km < 10) return t("nearby.kilometres", { value: km.toFixed(1) });
+  return t("nearby.kilometres", { value: Math.round(km) });
 }

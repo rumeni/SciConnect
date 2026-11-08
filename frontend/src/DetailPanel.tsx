@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { useT, type Translate } from "./i18n";
 import { LocationMap } from "./LocationMap";
 import { useDialog } from "./useDialog";
 import type {
@@ -64,6 +65,7 @@ export function DetailPanel({
    */
   canEdit: boolean;
 }) {
+  const t = useT();
   const current = stack[stack.length - 1];
   const [detail, setDetail] = useState<EntityDetail | null>(null);
   const [error, setError] = useState("");
@@ -83,7 +85,7 @@ export function DetailPanel({
         if (active) setDetail(result);
       })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Could not load");
+        if (active) setError(reason instanceof Error ? reason.message : t("detail.couldNotLoad"));
       });
     return () => {
       active = false;
@@ -100,7 +102,7 @@ export function DetailPanel({
 
   if (!current) return null;
 
-  const content = detail ? describe(detail) : null;
+  const content = detail ? describe(detail, t) : null;
 
   return (
     <div className="detail-backdrop" onClick={onClose} role="presentation">
@@ -109,25 +111,25 @@ export function DetailPanel({
         className="detail-panel"
         role="dialog"
         aria-modal="true"
-        aria-label={content?.title ?? "Details"}
+        aria-label={content?.title ?? t("detail.title")}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="detail-bar">
           {stack.length > 1 ? (
             <button type="button" className="link-button" onClick={onBack}>
-              ← Back
+              ← {t("common.back")}
             </button>
           ) : (
             <span />
           )}
           <button type="button" className="link-button" onClick={onClose}>
-            Close ✕
+            {t("common.close")} ✕
           </button>
         </div>
 
         {error && <p className="error">{error}</p>}
-        {!detail && !error && <p className="empty">Loading…</p>}
+        {!detail && !error && <p className="empty">{t("common.loading")}</p>}
 
         {content && (
           <>
@@ -140,7 +142,7 @@ export function DetailPanel({
 
             {content.map && (
               <section className="detail-section">
-                <h3>Location</h3>
+                <h3>{t("detail.location")}</h3>
                 {"missing" in content.map ? (
                   <p className="empty">{content.map.missing}</p>
                 ) : (
@@ -207,6 +209,7 @@ export function DetailPanel({
 
 /** The Remove button beside a row, with its own confirmation. */
 function RowRemoval({ removal, onDone }: { removal: Removal; onDone: () => void }) {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -218,7 +221,7 @@ function RowRemoval({ removal, onDone }: { removal: Removal; onDone: () => void 
       await removal.run();
       onDone();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not remove");
+      setError(reason instanceof Error ? reason.message : t("detail.couldNotRemove"));
       setBusy(false);
       setConfirming(false);
     }
@@ -228,7 +231,7 @@ function RowRemoval({ removal, onDone }: { removal: Removal; onDone: () => void 
     return (
       <div className="row-removal">
         <button type="button" className="danger" onClick={() => setConfirming(true)}>
-          Remove
+          {t("common.remove")}
         </button>
         {error && <p className="form-error">{error}</p>}
       </div>
@@ -240,7 +243,7 @@ function RowRemoval({ removal, onDone }: { removal: Removal; onDone: () => void 
       <p className="removal-detail">{removal.detail}</p>
       <div className="removal-actions">
         <button type="button" className="danger" disabled={busy} onClick={() => void run()}>
-          {busy ? "Removing…" : "Yes, remove"}
+          {busy ? t("common.removing") : t("detail.yesRemove")}
         </button>
         <button
           type="button"
@@ -248,7 +251,7 @@ function RowRemoval({ removal, onDone }: { removal: Removal; onDone: () => void 
           disabled={busy}
           onClick={() => setConfirming(false)}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>
@@ -282,26 +285,42 @@ const personItem = (item: PersonRef, remove?: Removal): LinkItem => ({
   remove,
 });
 
+/** Which kind of owned record a deletion is about, for the warning's wording. */
+type Owned = "instrument" | "offering" | "researcher";
+
 /** Removing an owned record from its owner means deleting it. */
-const deletes = (ref: EntityRef, owner: string, what: string): Removal => ({
-  detail:
-    `Removes this ${what} from ${owner}. The record is deleted, ` +
-    "because it belongs to exactly one institution and cannot stand without it.",
+const deletes = (t: Translate, ref: EntityRef, owner: string, what: Owned): Removal => ({
+  detail: t("detail.remove.deletes", {
+    what: t(`detail.remove.what.${what}` as const),
+    owner,
+  }),
   run: () => api.removeEntity(ref),
 });
 
-const unlinksInstrument = (analysisId: number, instrumentId: number): Removal => ({
-  detail: "The offering stops using this instrument. Both records stay.",
+const unlinksInstrument = (
+  t: Translate,
+  analysisId: number,
+  instrumentId: number,
+): Removal => ({
+  detail: t("detail.remove.instrument"),
   run: () => api.unlinkInstrument(analysisId, instrumentId),
 });
 
-const unlinksTarget = (analysisId: number, microorganismId: number): Removal => ({
-  detail: "The offering stops detecting this organism. Both records stay.",
+const unlinksTarget = (
+  t: Translate,
+  analysisId: number,
+  microorganismId: number,
+): Removal => ({
+  detail: t("detail.remove.target"),
   run: () => api.unlinkTarget(analysisId, microorganismId),
 });
 
-const unlinksResearcher = (analysisId: number, researcherId: number): Removal => ({
-  detail: "They stop performing this offering. Both records stay.",
+const unlinksResearcher = (
+  t: Translate,
+  analysisId: number,
+  researcherId: number,
+): Removal => ({
+  detail: t("detail.remove.researcher"),
   run: () => api.unlinkResearcher(analysisId, researcherId),
 });
 
@@ -311,15 +330,27 @@ const institutionItem = (item: InstitutionRef): LinkItem => ({
   note: `${item.city}, ${item.country}`,
 });
 
+/** An offering listed under its type, removable only by deleting it. */
+const ownedAnalysisItem = (t: Translate, offering: AnalysisRef): LinkItem =>
+  analysisItem(
+    offering,
+    deletes(
+      t,
+      { kind: "analysis", id: offering.id },
+      t("detail.remove.itsInstitution"),
+      "offering",
+    ),
+  );
+
 const fact = (label: string, value: string | number | null | undefined) =>
   value === null || value === undefined || value === "" ? [] : [{ label, value: String(value) }];
 
-function describe(detail: EntityDetail): Content {
+function describe(detail: EntityDetail, t: Translate): Content {
   switch (detail.kind) {
     case "institution": {
       const item = detail.data;
       return {
-        eyebrow: "Institution",
+        eyebrow: t("kind.institution"),
         title: item.name,
         subtitle: item.description ?? undefined,
         status: item.status,
@@ -327,45 +358,43 @@ function describe(detail: EntityDetail): Content {
           item.latitude !== null && item.longitude !== null
             ? { latitude: item.latitude, longitude: item.longitude, label: item.name }
             : {
-                missing: item.address
-                  ? "This address could not be placed on a map."
-                  : "No address recorded for this institution.",
+                missing: item.address ? t("detail.noMapAddress") : t("detail.noAddress"),
               },
         facts: [
-          ...fact("Address", item.address),
-          ...fact("Location", `${item.city}, ${item.country}`),
-          ...fact("Website", item.website),
-          ...fact("Contact", item.contact_email),
-          ...fact("Slug", item.slug),
+          ...fact(t("detail.fact.address"), item.address),
+          ...fact(t("detail.fact.location"), `${item.city}, ${item.country}`),
+          ...fact(t("detail.fact.website"), item.website),
+          ...fact(t("detail.fact.contact"), item.contact_email),
+          ...fact(t("detail.fact.slug"), item.slug),
         ],
         sections: [
           {
-            title: "Instruments",
-            empty: "No instruments recorded.",
+            title: t("detail.section.instruments"),
+            empty: t("detail.section.instruments.empty"),
             items: item.instruments.map((unit) =>
               instrumentItem(
                 unit,
-                deletes({ kind: "instrument", id: unit.id }, item.name, "instrument"),
+                deletes(t, { kind: "instrument", id: unit.id }, item.name, "instrument"),
               ),
             ),
           },
           {
-            title: "Analysis offerings",
-            empty: "No analysis offerings recorded.",
+            title: t("detail.section.analyses"),
+            empty: t("detail.section.analyses.empty"),
             items: item.analyses.map((offering) =>
               analysisItem(
                 offering,
-                deletes({ kind: "analysis", id: offering.id }, item.name, "offering"),
+                deletes(t, { kind: "analysis", id: offering.id }, item.name, "offering"),
               ),
             ),
           },
           {
-            title: "Researchers",
-            empty: "No researchers recorded.",
+            title: t("detail.section.researchers"),
+            empty: t("detail.section.researchers.empty"),
             items: item.researchers.map((person) =>
               personItem(
                 person,
-                deletes({ kind: "researcher", id: person.id }, item.name, "researcher"),
+                deletes(t, { kind: "researcher", id: person.id }, item.name, "researcher"),
               ),
             ),
           },
@@ -375,26 +404,26 @@ function describe(detail: EntityDetail): Content {
     case "researcher": {
       const item = detail.data;
       return {
-        eyebrow: "Researcher",
+        eyebrow: t("kind.researcher"),
         title: item.full_name,
         subtitle: item.expertise ?? undefined,
         status: item.status,
         facts: [
-          ...fact("Title", item.title),
-          ...fact("Email", item.email),
-          ...fact("ORCID", item.orcid),
+          ...fact(t("detail.fact.title"), item.title),
+          ...fact(t("detail.fact.email"), item.email),
+          ...fact(t("detail.fact.orcid"), item.orcid),
         ],
         sections: [
           {
-            title: "Institution",
+            title: t("detail.section.institution"),
             empty: "",
             items: [institutionItem(item.institution)],
           },
           {
-            title: "Performs",
-            empty: "Not linked to any analysis offering yet.",
+            title: t("detail.section.performs"),
+            empty: t("detail.section.performs.empty"),
             items: item.analyses.map((offering) =>
-              analysisItem(offering, unlinksResearcher(offering.id, item.id)),
+              analysisItem(offering, unlinksResearcher(t, offering.id, item.id)),
             ),
           },
         ],
@@ -403,19 +432,23 @@ function describe(detail: EntityDetail): Content {
     case "instrument": {
       const item = detail.data;
       return {
-        eyebrow: "Instrument",
+        eyebrow: t("kind.instrument"),
         title: item.display_name || item.instrument_type.name,
         subtitle: item.access_notes ?? undefined,
         status: item.status,
         facts: [
-          ...fact("Type", item.instrument_type.name),
-          ...fact("Manufacturer", item.manufacturer),
-          ...fact("Model", item.model),
+          ...fact(t("detail.fact.type"), item.instrument_type.name),
+          ...fact(t("detail.fact.manufacturer"), item.manufacturer),
+          ...fact(t("detail.fact.model"), item.model),
         ],
         sections: [
-          { title: "Institution", empty: "", items: [institutionItem(item.institution)] },
           {
-            title: "Instrument type",
+            title: t("detail.section.institution"),
+            empty: "",
+            items: [institutionItem(item.institution)],
+          },
+          {
+            title: t("detail.section.instrumentType"),
             empty: "",
             items: [
               {
@@ -426,10 +459,10 @@ function describe(detail: EntityDetail): Content {
             ],
           },
           {
-            title: "Used by",
-            empty: "Not linked to any analysis offering yet.",
+            title: t("detail.section.usedBy"),
+            empty: t("detail.section.usedBy.empty"),
             items: item.analyses.map((offering) =>
-              analysisItem(offering, unlinksInstrument(offering.id, item.id)),
+              analysisItem(offering, unlinksInstrument(t, offering.id, item.id)),
             ),
           },
         ],
@@ -438,21 +471,27 @@ function describe(detail: EntityDetail): Content {
     case "analysis": {
       const item = detail.data;
       return {
-        eyebrow: "Analysis offering",
+        eyebrow: t("kind.analysis"),
         title: item.public_name || item.analysis_type.name,
         subtitle: item.description ?? undefined,
         status: item.availability,
         facts: [
-          ...fact("Analysis type", item.analysis_type.name),
+          ...fact(t("detail.fact.analysisType"), item.analysis_type.name),
           ...fact(
-            "Turnaround",
-            item.turnaround_days ? `${item.turnaround_days} days` : null,
+            t("detail.fact.turnaround"),
+            item.turnaround_days
+              ? t("detail.fact.turnaroundDays", { days: item.turnaround_days })
+              : null,
           ),
         ],
         sections: [
-          { title: "Institution", empty: "", items: [institutionItem(item.institution)] },
           {
-            title: "Analysis type",
+            title: t("detail.section.institution"),
+            empty: "",
+            items: [institutionItem(item.institution)],
+          },
+          {
+            title: t("detail.section.analysisType"),
             empty: "",
             items: [
               {
@@ -463,27 +502,27 @@ function describe(detail: EntityDetail): Content {
             ],
           },
           {
-            title: "Uses instruments",
-            empty: "No instrument linked yet.",
+            title: t("detail.section.usesInstruments"),
+            empty: t("detail.section.usesInstruments.empty"),
             items: item.instruments.map((unit) =>
-              instrumentItem(unit, unlinksInstrument(item.id, unit.id)),
+              instrumentItem(unit, unlinksInstrument(t, item.id, unit.id)),
             ),
           },
           {
-            title: "Target organisms",
-            empty: "No target organism linked yet.",
+            title: t("detail.section.targets"),
+            empty: t("detail.section.targets.empty"),
             items: item.targets.map((target) => ({
               ref: { kind: "microorganism" as const, id: target.id },
               label: target.scientific_name,
               note: target.common_name ?? undefined,
-              remove: unlinksTarget(item.id, target.id),
+              remove: unlinksTarget(t, item.id, target.id),
             })),
           },
           {
-            title: "Performed by",
-            empty: "No researcher linked yet.",
+            title: t("detail.section.performedBy"),
+            empty: t("detail.section.performedBy.empty"),
             items: item.researchers.map((person) =>
-              personItem(person, unlinksResearcher(item.id, person.id)),
+              personItem(person, unlinksResearcher(t, item.id, person.id)),
             ),
           },
         ],
@@ -492,16 +531,16 @@ function describe(detail: EntityDetail): Content {
     case "microorganism": {
       const item = detail.data;
       return {
-        eyebrow: "Target organism",
+        eyebrow: t("kind.microorganism"),
         title: item.scientific_name,
         subtitle: item.description ?? undefined,
-        facts: fact("Common name", item.common_name),
+        facts: fact(t("detail.fact.commonName"), item.common_name),
         sections: [
           {
-            title: "Detected by",
-            empty: "No analysis offering targets this organism yet.",
+            title: t("detail.section.detectedBy"),
+            empty: t("detail.section.detectedBy.empty"),
             items: item.analyses.map((offering) =>
-              analysisItem(offering, unlinksTarget(offering.id, item.id)),
+              analysisItem(offering, unlinksTarget(t, offering.id, item.id)),
             ),
           },
         ],
@@ -510,23 +549,28 @@ function describe(detail: EntityDetail): Content {
     case "instrument-type": {
       const item = detail.data;
       return {
-        eyebrow: "Instrument type",
+        eyebrow: t("kind.instrument-type"),
         title: item.name,
         subtitle: item.description ?? undefined,
         facts: [],
         sections: [
           {
-            title: "Institutions owning one",
-            empty: "No institution owns this instrument type yet.",
+            title: t("detail.section.owners"),
+            empty: t("detail.section.owners.empty"),
             items: item.institutions.map(institutionItem),
           },
           {
-            title: "Individual units",
-            empty: "No units recorded.",
+            title: t("detail.section.units"),
+            empty: t("detail.section.units.empty"),
             items: item.instruments.map((unit) =>
               instrumentItem(
                 unit,
-                deletes({ kind: "instrument", id: unit.id }, "its institution", "instrument"),
+                deletes(
+                  t,
+                  { kind: "instrument", id: unit.id },
+                  t("detail.remove.itsInstitution"),
+                  "instrument",
+                ),
               ),
             ),
           },
@@ -536,25 +580,20 @@ function describe(detail: EntityDetail): Content {
     case "analysis-type": {
       const item = detail.data;
       return {
-        eyebrow: "Analysis type",
+        eyebrow: t("kind.analysis-type"),
         title: item.name,
         subtitle: item.description ?? undefined,
         facts: [],
         sections: [
           {
-            title: "Institutions offering it",
-            empty: "No institution offers this analysis type yet.",
+            title: t("detail.section.offerers"),
+            empty: t("detail.section.offerers.empty"),
             items: item.institutions.map(institutionItem),
           },
           {
-            title: "Offerings",
-            empty: "No offerings recorded.",
-            items: item.analyses.map((offering) =>
-              analysisItem(
-                offering,
-                deletes({ kind: "analysis", id: offering.id }, "its institution", "offering"),
-              ),
-            ),
+            title: t("detail.section.offerings"),
+            empty: t("detail.section.offerings.empty"),
+            items: item.analyses.map((offering) => ownedAnalysisItem(t, offering)),
           },
         ],
       };

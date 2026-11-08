@@ -1,4 +1,6 @@
 import { useRef, useState } from "react";
+import { useT, type MessageKey, type Translate } from "./i18n";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./Logo";
 
 /**
@@ -12,37 +14,55 @@ export function Landing({
   onGuest,
   onAdmin,
   onPartners,
+  onContact,
 }: {
   onGuest: () => void;
   onAdmin: () => void;
   onPartners: () => void;
+  onContact: () => void;
 }) {
+  const t = useT();
   const tryIt = useRef<HTMLElement>(null);
 
   return (
     <main className="landing">
       <header className="landing-head">
-        <Brand />
-        <a
-          className="secondary partners-link"
-          href="/partners"
-          onClick={(event) => {
-            event.preventDefault();
-            onPartners();
+        <Brand
+          onHome={() => {
+            // Already home: the logo just brings the top of the page back.
+            const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
           }}
-        >
-          Partners &amp; Supporters
-        </a>
+        />
+        <div className="head-actions">
+          <LanguageSwitch />
+          <a
+            className="secondary partners-link"
+            href="/partners"
+            onClick={(event) => {
+              event.preventDefault();
+              onPartners();
+            }}
+          >
+            {t("landing.partners")}
+          </a>
+          <a
+            className="primary contact-link"
+            href="/kontakt"
+            onClick={(event) => {
+              event.preventDefault();
+              onContact();
+            }}
+          >
+            {t("landing.contact")}
+          </a>
+        </div>
       </header>
 
       <section className="landing-hero">
         <div className="landing-intro">
-          <h1 className="landing-title">Find the lab that can run your analysis.</h1>
-          <p className="landing-lede">
-            SciConnect records which institutions own which instruments, which analyses they
-            offer on them, who performs those analyses, and which microorganisms they target. Ask
-            for the exact combination your work needs and get the places that have all of it.
-          </p>
+          <h1 className="landing-title">{t("landing.title")}</h1>
+          <p className="landing-lede">{t("landing.lede")}</p>
           <button
             type="button"
             className="primary landing-cta"
@@ -52,7 +72,7 @@ export function Landing({
               tryIt.current?.focus({ preventScroll: true });
             }}
           >
-            Try it
+            {t("landing.cta")}
           </button>
         </div>
 
@@ -60,39 +80,28 @@ export function Landing({
       </section>
 
       <section className="landing-why">
-        <h2>Why it exists</h2>
+        <h2>{t("landing.whyTitle")}</h2>
         <div className="landing-why-text">
-          <p>
-            Equipment and expertise are spread across institutes, faculties and agencies. Today
-            the usual way to find a sequencer, a PCR platform or someone who works with a given
-            pathogen is to know someone who knows.
-          </p>
-          <p>
-            SciConnect writes those connections down. A researcher looking for a partner, a
-            company that needs a test run, or a lab manager planning shared equipment can look
-            it up instead of asking around.
-          </p>
+          <p>{t("landing.why1")}</p>
+          <p>{t("landing.why2")}</p>
         </div>
       </section>
 
       <section className="landing-try" id="try" ref={tryIt} tabIndex={-1} aria-labelledby="try-title">
-        <h2 id="try-title">Try it</h2>
+        <h2 id="try-title">{t("landing.tryTitle")}</h2>
         <div className="landing-choices">
           <div className="choice choice-guest">
-            <h3>Browse as a guest</h3>
-            <p>
-              Search capabilities, find institutions near you, and open any record. No key
-              needed.
-            </p>
+            <h3>{t("landing.guestTitle")}</h3>
+            <p>{t("landing.guestText")}</p>
             <button type="button" className="primary" onClick={onGuest}>
-              Browse as guest
+              {t("landing.guestButton")}
             </button>
           </div>
           <div className="choice choice-admin">
-            <h3>Sign in as admin</h3>
-            <p>Everything a guest can do, plus adding, connecting and removing records.</p>
+            <h3>{t("landing.adminTitle")}</h3>
+            <p>{t("landing.adminText")}</p>
             <button type="button" className="secondary" onClick={onAdmin}>
-              Sign in as admin
+              {t("landing.adminButton")}
             </button>
           </div>
         </div>
@@ -103,53 +112,58 @@ export function Landing({
 
 type NodeId = "institution" | "instrument" | "analysis" | "researcher" | "microorganism";
 
-const NODES: Record<NodeId, { x: number; y: number; label: string; labelAbove?: boolean }> = {
-  institution: { x: 74, y: 176, label: "Institution" },
-  instrument: { x: 270, y: 62, label: "Instrument", labelAbove: true },
-  analysis: { x: 336, y: 176, label: "Analysis" },
-  researcher: { x: 270, y: 290, label: "Researcher" },
-  microorganism: { x: 470, y: 176, label: "Microorganism" },
+const NODES: Record<NodeId, { x: number; y: number; label: MessageKey; labelAbove?: boolean }> = {
+  institution: { x: 74, y: 176, label: "graph.node.institution" },
+  instrument: { x: 270, y: 62, label: "graph.node.instrument", labelAbove: true },
+  analysis: { x: 336, y: 176, label: "graph.node.analysis" },
+  researcher: { x: 270, y: 290, label: "graph.node.researcher" },
+  microorganism: { x: 470, y: 176, label: "graph.node.microorganism" },
 };
 
 type EdgeId = "owns" | "offers" | "employs" | "uses" | "runs" | "targets";
 
-const EDGES: Record<EdgeId, { from: NodeId; to: NodeId; label: string }> = {
-  owns: { from: "institution", to: "instrument", label: "owns" },
-  offers: { from: "institution", to: "analysis", label: "offers" },
-  employs: { from: "institution", to: "researcher", label: "employs" },
-  uses: { from: "analysis", to: "instrument", label: "uses" },
-  runs: { from: "analysis", to: "researcher", label: "run by" },
-  targets: { from: "analysis", to: "microorganism", label: "targets" },
+const EDGES: Record<EdgeId, { from: NodeId; to: NodeId; label: MessageKey }> = {
+  owns: { from: "institution", to: "instrument", label: "graph.edge.owns" },
+  offers: { from: "institution", to: "analysis", label: "graph.edge.offers" },
+  employs: { from: "institution", to: "researcher", label: "graph.edge.employs" },
+  uses: { from: "analysis", to: "instrument", label: "graph.edge.uses" },
+  runs: { from: "analysis", to: "researcher", label: "graph.edge.runs" },
+  targets: { from: "analysis", to: "microorganism", label: "graph.edge.targets" },
 };
 
-const QUESTIONS: { text: string; why: string; nodes: NodeId[]; edges: EdgeId[] }[] = [
+const QUESTIONS: { text: MessageKey; why: MessageKey; nodes: NodeId[]; edges: EdgeId[] }[] = [
   {
-    text: "Which institutions have a Real-Time PCR System?",
-    why: "Only instruments an institution actually owns count.",
+    text: "graph.q1",
+    why: "graph.q1.why",
     nodes: ["institution", "instrument"],
     edges: ["owns"],
   },
   {
-    text: "Who offers Whole Genome Sequencing for Listeria monocytogenes?",
-    why: "The analysis has to be stated to target that organism.",
+    text: "graph.q2",
+    why: "graph.q2.why",
     nodes: ["institution", "analysis", "microorganism"],
     edges: ["offers", "targets"],
   },
   {
-    text: "Who runs this analysis, and on which instrument?",
-    why: "The instrument and the researcher must belong to the same institution as the analysis.",
+    text: "graph.q3",
+    why: "graph.q3.why",
     nodes: ["analysis", "instrument", "researcher"],
     edges: ["uses", "runs"],
   },
   {
-    text: "All five at once",
-    why: "Every link has to hold together, inside one institution.",
+    text: "graph.q4",
+    why: "graph.q4.why",
     nodes: ["institution", "instrument", "analysis", "researcher", "microorganism"],
     edges: ["owns", "offers", "employs", "uses", "runs", "targets"],
   },
 ];
 
+/** One edge spelled out for a screen reader: "Institution owns Instrument". */
+const edgeSentence = (t: Translate, id: EdgeId) =>
+  `${t(NODES[EDGES[id].from].label)} ${t(EDGES[id].label)} ${t(NODES[EDGES[id].to].label)}`;
+
 function CapabilityGraph() {
+  const t = useT();
   const [chosen, setChosen] = useState(QUESTIONS.length - 1);
   const question = QUESTIONS[chosen];
   const lit = new Set<string>([...question.nodes, ...question.edges]);
@@ -159,8 +173,8 @@ function CapabilityGraph() {
       <svg
         viewBox="0 0 544 340"
         role="img"
-        aria-label={`${question.text} Links involved: ${question.edges
-          .map((id) => `${NODES[EDGES[id].from].label} ${EDGES[id].label} ${NODES[EDGES[id].to].label}`)
+        aria-label={`${t(question.text)} ${t("graph.linksInvolved")}: ${question.edges
+          .map((id) => edgeSentence(t, id))
           .join(", ")}.`}
       >
         {(Object.keys(EDGES) as EdgeId[]).map((id) => {
@@ -171,7 +185,7 @@ function CapabilityGraph() {
             <g key={id} className={lit.has(id) ? "edge lit" : "edge"}>
               <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
               <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 6} textAnchor="middle">
-                {label}
+                {t(label)}
               </text>
             </g>
           );
@@ -186,7 +200,7 @@ function CapabilityGraph() {
                 y={node.labelAbove ? node.y - 26 : node.y + 36}
                 textAnchor="middle"
               >
-                {node.label}
+                {t(node.label)}
               </text>
             </g>
           );
@@ -194,7 +208,7 @@ function CapabilityGraph() {
       </svg>
 
       <figcaption>
-        <ul className="graph-questions" aria-label="Example questions">
+        <ul className="graph-questions" aria-label={t("graph.questions")}>
           {QUESTIONS.map((item, index) => (
             <li key={item.text}>
               <button
@@ -203,13 +217,13 @@ function CapabilityGraph() {
                 className={index === chosen ? "graph-question chosen" : "graph-question"}
                 onClick={() => setChosen(index)}
               >
-                {item.text}
+                {t(item.text)}
               </button>
             </li>
           ))}
         </ul>
         <p className="graph-why" aria-live="polite">
-          {question.why}
+          {t(question.why)}
         </p>
       </figcaption>
     </figure>

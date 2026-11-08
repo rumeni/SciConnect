@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { Contact } from "./Contact";
 import { Landing } from "./Landing";
 import { Partners } from "./Partners";
 import { enterAsGuest, leave, session, watchSession, type Role } from "./session";
@@ -6,6 +7,7 @@ import { SignIn } from "./SignIn";
 import { Workspace } from "./Workspace";
 
 const PARTNERS_PATH = "/partners";
+const CONTACT_PATH = "/kontakt";
 
 /** The address bar's path, kept in step with Back and Forward. */
 function usePath(): [string, (next: string) => void] {
@@ -24,35 +26,43 @@ function usePath(): [string, (next: string) => void] {
 
 /**
  * Which screen this tab shows: the start page, the admin sign-in, the
- * partners page, or the app.
+ * partners page, the contact page, or the app.
  *
  * Once someone has picked guest or admin, a reload returns them to the app
  * rather than the start page, until the tab is closed or they leave.
  */
 export default function App() {
   const current = useSyncExternalStore(watchSession, session);
-  // The partners page has an address of its own so it can be linked to. It is
-  // public and reads nothing, so it is shown whoever is signed in.
+  // The partners and contact pages have addresses of their own so they can be
+  // linked to. They are public and read nothing, so they are shown whoever is
+  // signed in.
   const [path, go] = usePath();
   // Where "Back" on the sign-in screen returns to: a guest who chose to sign in
   // goes back to browsing, everyone else to the start page.
   const [signingInFrom, setSigningInFrom] = useState<Role | "start" | null>(null);
 
+  const page = path.replace(/\/+$/, "");
   const screen =
-    path.replace(/\/+$/, "") === PARTNERS_PATH
+    page === PARTNERS_PATH
       ? "partners"
-      : current.role
-        ? "workspace"
-        : signingInFrom || current.expired
-          ? "sign-in"
-          : "start";
+      : page === CONTACT_PATH
+        ? "contact"
+        : current.role
+          ? "workspace"
+          : signingInFrom || current.expired
+            ? "sign-in"
+            : "start";
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
 
   if (screen === "partners") {
-    return <Partners onHome={() => go("/")} />;
+    return <Partners onHome={() => go("/")} onContact={() => go(CONTACT_PATH)} />;
+  }
+
+  if (screen === "contact") {
+    return <Contact onHome={() => go("/")} />;
   }
 
   if (current.role) {
@@ -92,6 +102,7 @@ export default function App() {
       onGuest={enterAsGuest}
       onAdmin={() => setSigningInFrom("start")}
       onPartners={() => go(PARTNERS_PATH)}
+      onContact={() => go(CONTACT_PATH)}
     />
   );
 }

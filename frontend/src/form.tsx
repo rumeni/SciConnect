@@ -1,11 +1,12 @@
 import { FormEvent, ReactNode, useState } from "react";
+import { useT } from "./i18n";
 
 export function Select({
   label,
   value,
   onChange,
   children,
-  placeholder = "Any",
+  placeholder,
   required = false,
   disabled = false,
 }: {
@@ -13,11 +14,15 @@ export function Select({
   value: string;
   onChange: (value: string) => void;
   children: ReactNode;
-  /** Text of the empty option. Pass null for a select that always has a value. */
+  /**
+   * Text of the empty option. Left out it reads "Any"; pass null for a select
+   * that always has a value.
+   */
   placeholder?: string | null;
   required?: boolean;
   disabled?: boolean;
 }) {
+  const t = useT();
   return (
     <label>
       <span>{label}</span>
@@ -27,7 +32,9 @@ export function Select({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       >
-        {placeholder !== null && <option value="">{placeholder}</option>}
+        {placeholder !== null && (
+          <option value="">{placeholder ?? t("common.any")}</option>
+        )}
         {children}
       </select>
     </label>
@@ -82,6 +89,7 @@ export function CreateForm({
   onDone: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   const [status, setStatus] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -96,7 +104,7 @@ export function CreateForm({
     } catch (reason) {
       setStatus({
         kind: "error",
-        message: reason instanceof Error ? reason.message : "Request failed",
+        message: reason instanceof Error ? reason.message : t("common.requestFailed"),
       });
     } finally {
       setBusy(false);
@@ -110,7 +118,7 @@ export function CreateForm({
       <div className="form-grid">{children}</div>
       <div className="form-footer">
         <button className="primary" type="submit" disabled={busy}>
-          {busy ? "Saving…" : submitLabel}
+          {busy ? t("common.saving") : submitLabel}
         </button>
         {status && (
           <span className={status.kind === "ok" ? "form-ok" : "form-error"}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api";
 import { Select } from "./form";
+import { useT, type MessageKey } from "./i18n";
 import type { AnalysisDetailView, Catalogs, EntityKind, EntityRef } from "./types";
 
 /**
@@ -20,6 +21,7 @@ export function CurrentConnections({
   version?: number;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [detail, setDetail] = useState<AnalysisDetailView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -34,12 +36,12 @@ export function CurrentConnections({
         if (active && answer.kind === "analysis") setDetail(answer.data);
       })
       .catch(() => {
-        if (active) setError("Could not read this offering's connections.");
+        if (active) setError(t("current.readFailed"));
       });
     return () => {
       active = false;
     };
-  }, [analysisId, version, reloads]);
+  }, [analysisId, version, reloads, t]);
 
   const disconnect = async (key: string, run: () => Promise<unknown>) => {
     setBusy(key);
@@ -49,7 +51,7 @@ export function CurrentConnections({
       setReloads((current) => current + 1);
       onChanged();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not disconnect");
+      setError(reason instanceof Error ? reason.message : t("current.disconnectFailed"));
     } finally {
       setBusy(null);
     }
@@ -58,8 +60,8 @@ export function CurrentConnections({
   if (!detail) {
     return (
       <div className="card-form">
-        <h3>Current connections</h3>
-        <p className="empty">{error || "Loading…"}</p>
+        <h3>{t("current.title")}</h3>
+        <p className="empty">{error || t("common.loading")}</p>
       </div>
     );
   }
@@ -68,32 +70,32 @@ export function CurrentConnections({
     ...detail.instruments.map((item) => ({
       key: `instrument-${item.id}`,
       label: item.display_name || item.type_name,
-      note: "Uses this instrument",
+      note: t("current.usesInstrument"),
       run: () => api.unlinkInstrument(detail.id, item.id),
     })),
     ...detail.targets.map((item) => ({
       key: `target-${item.id}`,
       label: item.scientific_name,
-      note: "Detects this organism",
+      note: t("current.detectsOrganism"),
       run: () => api.unlinkTarget(detail.id, item.id),
     })),
     ...detail.researchers.map((item) => ({
       key: `researcher-${item.id}`,
       label: item.full_name,
-      note: item.role ? `Performed by, as ${item.role}` : "Performed by",
+      note: item.role
+        ? t("current.performedByAs", { role: item.role })
+        : t("current.performedBy"),
       run: () => api.unlinkResearcher(detail.id, item.id),
     })),
   ];
 
   return (
     <div className="card-form">
-      <h3>Current connections</h3>
-      <p className="form-hint">
-        Disconnecting removes only the relationship. Both records stay in the catalogue.
-      </p>
+      <h3>{t("current.title")}</h3>
+      <p className="form-hint">{t("current.hint")}</p>
       {error && <p className="form-error">{error}</p>}
       {rows.length === 0 ? (
-        <p className="empty">This offering is not connected to anything yet.</p>
+        <p className="empty">{t("current.empty")}</p>
       ) : (
         <ul className="link-list">
           {rows.map((row) => (
@@ -108,7 +110,7 @@ export function CurrentConnections({
                 disabled={busy !== null}
                 onClick={() => void disconnect(row.key, row.run)}
               >
-                {busy === row.key ? "Removing…" : "Disconnect"}
+                {busy === row.key ? t("common.removing") : t("current.disconnect")}
               </button>
             </li>
           ))}
@@ -120,6 +122,17 @@ export function CurrentConnections({
 
 type Choice = { id: number; label: string };
 
+/** The kinds that can be deleted, in the order the select offers them. */
+const KIND_OPTIONS: [EntityKind, MessageKey][] = [
+  ["institution", "kind.institution"],
+  ["instrument-type", "kind.instrument-type"],
+  ["analysis-type", "kind.analysis-type"],
+  ["microorganism", "kind.microorganism"],
+  ["researcher", "kind.researcher"],
+  ["instrument", "manage.instrument.title"],
+  ["analysis", "kind.analysis"],
+];
+
 /** Delete a record, after saying what will go with it. */
 export function RemoveRecordForm({
   catalogs,
@@ -128,6 +141,7 @@ export function RemoveRecordForm({
   catalogs: Catalogs;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [kind, setKind] = useState<EntityKind | "">("");
   const [id, setId] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -167,15 +181,15 @@ export function RemoveRecordForm({
     })),
     instrument: catalogs.institutionInstruments.map((item) => ({
       id: item.id,
-      label: `${item.display_name || `Instrument ${item.id}`} — ${institutionName(
-        item.institution_id,
-      )}`,
+      label: `${
+        item.display_name || t("connect.unnamedInstrument", { id: item.id })
+      } — ${institutionName(item.institution_id)}`,
     })),
     analysis: catalogs.institutionAnalyses.map((item) => ({
       id: item.id,
-      label: `${item.public_name || `Offering ${item.id}`} — ${institutionName(
-        item.institution_id,
-      )}`,
+      label: `${
+        item.public_name || t("connect.unnamedOffering", { id: item.id })
+      } — ${institutionName(item.institution_id)}`,
     })),
   };
 
@@ -197,7 +211,7 @@ export function RemoveRecordForm({
       reset();
       onChanged();
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : "Could not delete";
+      const message = reason instanceof Error ? reason.message : t("delete.failed");
       setStatus({ kind: "error", message });
       const held =
         reason instanceof ApiError &&
@@ -216,16 +230,11 @@ export function RemoveRecordForm({
 
   return (
     <div className="card-form">
-      <h3>Delete a record</h3>
-      <p className="form-hint">
-        A catalogue entry still in use cannot be deleted; disconnect or delete what
-        depends on it first. Deleting a researcher is how someone who has left the
-        institution is removed, because their affiliation is part of the record rather
-        than a connection.
-      </p>
+      <h3>{t("delete.title")}</h3>
+      <p className="form-hint">{t("delete.hint")}</p>
       <div className="form-grid">
         <Select
-          label="Kind"
+          label={t("manage.field.kind")}
           value={kind}
           disabled={busy}
           onChange={(value) => {
@@ -233,18 +242,16 @@ export function RemoveRecordForm({
             reset();
             setStatus(null);
           }}
-          placeholder="Select a kind"
+          placeholder={t("manage.pick.kind")}
         >
-          <option value="institution">Institution</option>
-          <option value="instrument-type">Instrument type</option>
-          <option value="analysis-type">Analysis type</option>
-          <option value="microorganism">Target organism</option>
-          <option value="researcher">Researcher</option>
-          <option value="instrument">Institution instrument</option>
-          <option value="analysis">Analysis offering</option>
+          {KIND_OPTIONS.map(([value, key]) => (
+            <option key={value} value={value}>
+              {t(key)}
+            </option>
+          ))}
         </Select>
         <Select
-          label="Record"
+          label={t("manage.field.record")}
           value={id}
           disabled={busy}
           onChange={(value) => {
@@ -252,7 +259,7 @@ export function RemoveRecordForm({
             setConfirming(false);
             setCascade(null);
           }}
-          placeholder={kind ? "Select a record" : "Choose a kind first"}
+          placeholder={kind ? t("manage.pick.record") : t("manage.pick.kindFirst")}
         >
           {options.map((item) => (
             <option key={item.id} value={item.id}>
@@ -274,7 +281,7 @@ export function RemoveRecordForm({
               setCascade(null);
             }}
           >
-            Delete
+            {t("common.delete")}
           </button>
         ) : (
           <>
@@ -286,7 +293,11 @@ export function RemoveRecordForm({
                 if (target) void run(target, selected?.label ?? "", false);
               }}
             >
-              {busy ? "Deleting…" : `Yes, delete ${selected?.label ?? "it"}`}
+              {busy
+                ? t("common.deleting")
+                : t("delete.confirm", {
+                    label: selected?.label ?? t("delete.confirmIt"),
+                  })}
             </button>
             <button
               type="button"
@@ -294,7 +305,7 @@ export function RemoveRecordForm({
               disabled={busy}
               onClick={() => setConfirming(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </>
         )}
@@ -306,7 +317,7 @@ export function RemoveRecordForm({
             disabled={busy}
             onClick={() => void run(cascade.ref, cascade.label, true)}
           >
-            Delete {cascade.label} and everything it holds
+            {t("delete.cascade", { label: cascade.label })}
           </button>
         )}
 

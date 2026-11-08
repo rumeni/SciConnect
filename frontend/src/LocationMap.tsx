@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useT } from "./i18n";
 import { popupNode } from "./mapLayer";
 
 /**
@@ -21,6 +22,7 @@ export function LocationMap({
   longitude: number;
   label: string;
 }) {
+  const t = useT();
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
 
@@ -64,7 +66,7 @@ export function LocationMap({
 
   return (
     <div className="map-wrap">
-      <div className="map" ref={container} role="application" aria-label={`Map of ${label}`} />
+      <div className="map" ref={container} role="application" aria-label={t("nearby.mapOf", { place: label })} />
       <div className="map-hint">
         <span>
           {latitude.toFixed(4)}, {longitude.toFixed(4)}
@@ -74,7 +76,7 @@ export function LocationMap({
           className="link-button"
           onClick={() => map.current?.setView([latitude, longitude], 13)}
         >
-          Recenter
+          {t("common.recenter")}
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { FormEvent, ReactNode } from "react";
+import { useT } from "./i18n";
 import type {
   EntityRef,
   FilterOption,
@@ -63,6 +64,8 @@ export function SearchView({
   loading: boolean;
   error: string;
 }) {
+  const t = useT();
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onSearch();
@@ -72,7 +75,7 @@ export function SearchView({
     <>
       <form className="filters" onSubmit={submit}>
         <FilterSelect
-          label="Institution"
+          label={t("search.institution")}
           kind="institution"
           value={filters.institution_ids}
           onChange={(value) => onFilterChange("institution_ids", value)}
@@ -80,7 +83,7 @@ export function SearchView({
           options={options.institutions}
         />
         <FilterSelect
-          label="Instrument"
+          label={t("search.instrument")}
           kind="instrument-type"
           value={filters.instrument_type_ids}
           onChange={(value) => onFilterChange("instrument_type_ids", value)}
@@ -88,7 +91,7 @@ export function SearchView({
           options={options.instrument_types}
         />
         <FilterSelect
-          label="Analysis"
+          label={t("search.analysis")}
           kind="analysis-type"
           value={filters.analysis_type_ids}
           onChange={(value) => onFilterChange("analysis_type_ids", value)}
@@ -96,7 +99,7 @@ export function SearchView({
           options={options.analysis_types}
         />
         <FilterSelect
-          label="Target organism"
+          label={t("search.organism")}
           kind="microorganism"
           value={filters.microorganism_ids}
           onChange={(value) => onFilterChange("microorganism_ids", value)}
@@ -104,7 +107,7 @@ export function SearchView({
           options={options.microorganisms}
         />
         <FilterSelect
-          label="Researcher"
+          label={t("search.researcher")}
           kind="researcher"
           value={filters.researcher_ids}
           onChange={(value) => onFilterChange("researcher_ids", value)}
@@ -113,27 +116,28 @@ export function SearchView({
         />
         <div className="actions">
           <button className="primary" type="submit">
-            Search capabilities
+            {t("search.submit")}
           </button>
           <button className="secondary" type="button" onClick={onClear}>
-            Clear
+            {t("search.clear")}
           </button>
         </div>
       </form>
 
       <section className="results" aria-live="polite">
         <div className="results-heading">
-          <h2>Matching institutions</h2>
-          <span>{loading ? "Searching…" : `${results?.total ?? 0} results`}</span>
+          <h2>{t("search.results")}</h2>
+          <span>
+            {loading
+              ? t("search.searching")
+              : t("search.count", { count: results?.total ?? 0 })}
+          </span>
         </div>
         {error && <p className="error">{error}</p>}
         {!loading && !error && results?.items.length === 0 && (
-          <p className="empty">No institution satisfies the selected combination.</p>
+          <p className="empty">{t("search.none")}</p>
         )}
-        <p className="results-hint">
-          Each filter lists only values that still match the other choices. Select any name
-          below to open its details.
-        </p>
+        <p className="results-hint">{t("search.hint")}</p>
         <div className="result-grid">
           {results?.items.map((result) => (
             <article className="result-card" key={result.institution.id}>
@@ -152,7 +156,7 @@ export function SearchView({
                 </h3>
               </div>
               {result.matched_instruments.length > 0 && (
-                <Group title="Matching instruments">
+                <Group title={t("search.matchedInstruments")}>
                   {result.matched_instruments.map((item) => (
                     <Chip
                       key={item.id}
@@ -165,7 +169,7 @@ export function SearchView({
               )}
               {result.matched_researchers.length > 0 && (
                 <PeopleGroup
-                  title="Researchers"
+                  title={t("search.researchers")}
                   people={result.matched_researchers}
                   onOpen={onOpen}
                 />
@@ -182,9 +186,11 @@ export function SearchView({
                     </button>
                     <span>{analysis.availability}</span>
                   </div>
-                  {analysis.turnaround_days && <p>{analysis.turnaround_days} day turnaround</p>}
+                  {analysis.turnaround_days && (
+                    <p>{t("search.turnaround", { days: analysis.turnaround_days })}</p>
+                  )}
                   {analysis.instruments.length > 0 && (
-                    <Group title="Uses">
+                    <Group title={t("search.uses")}>
                       {analysis.instruments.map((item) => (
                         <Chip
                           key={item.id}
@@ -196,7 +202,7 @@ export function SearchView({
                     </Group>
                   )}
                   {analysis.targets.length > 0 && (
-                    <Group title="Targets">
+                    <Group title={t("search.targets")}>
                       {analysis.targets.map((item) => (
                         <Chip
                           key={item.id}
@@ -208,7 +214,7 @@ export function SearchView({
                     </Group>
                   )}
                   <PeopleGroup
-                    title="Performed by"
+                    title={t("search.performedBy")}
                     people={analysis.researchers}
                     onOpen={onOpen}
                   />
@@ -226,8 +232,11 @@ export function SearchView({
               onClick={onLoadMore}
             >
               {loading
-                ? "Loading…"
-                : `Show more (${results.items.length} of ${results.total})`}
+                ? t("common.loading")
+                : t("search.showMore", {
+                    shown: results.items.length,
+                    total: results.total,
+                  })}
             </button>
           </div>
         )}
@@ -255,6 +264,7 @@ function FilterSelect({
   onOpen: (ref: EntityRef) => void;
   options: FilterOption[];
 }) {
+  const t = useT();
   const empty = options.length === 0;
   return (
     <label>
@@ -264,7 +274,7 @@ function FilterSelect({
         disabled={empty}
         onChange={(event) => onChange(event.target.value)}
       >
-        <option value="">{empty ? "None available" : "Any"}</option>
+        <option value="">{empty ? t("search.noneAvailable") : t("common.any")}</option>
         {options.map((item) => (
           <option key={item.id} value={item.id}>
             {item.label}
@@ -277,7 +287,7 @@ function FilterSelect({
           className="link-button filter-detail"
           onClick={() => onOpen({ kind, id: Number(value) })}
         >
-          View details
+          {t("search.viewDetails")}
         </button>
       )}
     </label>

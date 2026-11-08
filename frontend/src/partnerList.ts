@@ -1,5 +1,5 @@
 /**
- * The organizations shown on the Partners & Supporters page.
+ * The organizations shown on the Partners & Sponsors page.
  *
  * To add one, put an entry in the right group below. A logo is optional: drop
  * the image into `frontend/public/partner-logos/` and name it here as
@@ -17,6 +17,8 @@
  *   },
  */
 
+import type { MessageKey } from "./i18n";
+
 export type Partner = {
   name: string;
   /** Their own site. Opens in a new tab. */
@@ -28,21 +30,22 @@ export type Partner = {
 };
 
 export type PartnerGroup = {
-  title: string;
-  /** What being in this group means, in a sentence. */
-  hint: string;
+  /** Translation key for the heading; the text lives in `i18n.ts`. */
+  title: MessageKey;
+  /** Translation key for what being in this group means, in a sentence. */
+  hint: MessageKey;
   members: Partner[];
 };
 
 export const PARTNER_GROUPS: PartnerGroup[] = [
   {
-    title: "Partners",
-    hint: "Institutions that contribute data, expertise or infrastructure to SciConnect.",
+    title: "partners.group.partners",
+    hint: "partners.group.partners.hint",
     members: [],
   },
   {
-    title: "Supporters",
-    hint: "Organizations and people who fund or otherwise help the project grow.",
+    title: "partners.group.sponsors",
+    hint: "partners.group.sponsors.hint",
     members: [],
   },
 ];
