@@ -1,4 +1,13 @@
-import { FormEvent, ReactNode } from "react";
+import {
+  FormEvent,
+  KeyboardEvent,
+  ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useT } from "./i18n";
 import type {
   EntityRef,
@@ -76,6 +85,7 @@ export function SearchView({
       <form className="filters" onSubmit={submit}>
         <FilterSelect
           label={t("search.institution")}
+          placeholder={t("search.placeholder.institution")}
           kind="institution"
           value={filters.institution_ids}
           onChange={(value) => onFilterChange("institution_ids", value)}
@@ -84,6 +94,7 @@ export function SearchView({
         />
         <FilterSelect
           label={t("search.instrument")}
+          placeholder={t("search.placeholder.instrument")}
           kind="instrument-type"
           value={filters.instrument_type_ids}
           onChange={(value) => onFilterChange("instrument_type_ids", value)}
@@ -92,6 +103,7 @@ export function SearchView({
         />
         <FilterSelect
           label={t("search.analysis")}
+          placeholder={t("search.placeholder.analysis")}
           kind="analysis-type"
           value={filters.analysis_type_ids}
           onChange={(value) => onFilterChange("analysis_type_ids", value)}
@@ -100,6 +112,7 @@ export function SearchView({
         />
         <FilterSelect
           label={t("search.organism")}
+          placeholder={t("search.placeholder.organism")}
           kind="microorganism"
           value={filters.microorganism_ids}
           onChange={(value) => onFilterChange("microorganism_ids", value)}
@@ -108,6 +121,7 @@ export function SearchView({
         />
         <FilterSelect
           label={t("search.researcher")}
+          placeholder={t("search.placeholder.researcher")}
           kind="researcher"
           value={filters.researcher_ids}
           onChange={(value) => onFilterChange("researcher_ids", value)}
@@ -245,12 +259,56 @@ export function SearchView({
   );
 }
 
+/** Lower-cases and strips diacritics, so "sabac" finds "Šabac". */
+function fold(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase();
+}
+
+/** Every option matching the query, ranked: whole-label prefixes first, then word prefixes, then anywhere. */
+function suggest(options: FilterOption[], query: string): FilterOption[] {
+  const q = fold(query.trim());
+  if (!q) return options;
+  const ranked: { item: FilterOption; rank: number }[] = [];
+  for (const item of options) {
+    const label = fold(item.label);
+    const at = label.indexOf(q);
+    if (at < 0) continue;
+    const rank = at === 0 ? 0 : label.split(/[\s,.()\-/]+/).some((w) => w.startsWith(q)) ? 1 : 2;
+    ranked.push({ item, rank });
+  }
+  ranked.sort((a, b) => a.rank - b.rank);
+  return ranked.map((r) => r.item);
+}
+
+/** The label with the typed part in bold, as in a map search box. */
+function Highlight({ label, query }: { label: string; query: string }) {
+  const q = fold(query.trim());
+  // fold() keeps one character per character, so indexes line up with the label.
+  const folded = fold(label);
+  const at = q ? folded.indexOf(q) : -1;
+  if (at < 0 || folded.length !== label.length) return <>{label}</>;
+  return (
+    <>
+      {label.slice(0, at)}
+      <strong>{label.slice(at, at + q.length)}</strong>
+      {label.slice(at + q.length)}
+    </>
+  );
+}
+
 /**
- * One filter. Its options are narrowed by the other selections, so every choice
- * still leads somewhere; the current selection can be opened in the detail panel.
+ * One filter: a text field that suggests matching values as you type, five visible
+ * at a time with the rest a scroll away.
+ * Its options are narrowed by the other selections, so every choice still leads
+ * somewhere; the current selection can be opened in the detail panel.
  */
 function FilterSelect({
   label,
+  placeholder,
   kind,
   value,
   onChange,
@@ -258,6 +316,7 @@ function FilterSelect({
   options,
 }: {
   label: string;
+  placeholder: string;
   kind: EntityRef["kind"];
   value: string;
   onChange: (value: string) => void;
@@ -265,22 +324,125 @@ function FilterSelect({
   options: FilterOption[];
 }) {
   const t = useT();
-  const empty = options.length === 0;
+  const listId = useId();
+  const listRef = useRef<HTMLUListElement>(null);
+  const empty = options.length === 0 && !value;
+  const selectedLabel = options.find((item) => String(item.id) === value)?.label ?? "";
+
+  const [text, setText] = useState(selectedLabel);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+
+  // Keep the field in step with the selection (e.g. after "Clear").
+  useEffect(() => {
+    setText(selectedLabel);
+  }, [value, selectedLabel]);
+
+  const matches = useMemo(
+    () => suggest(options, text === selectedLabel && value ? "" : text),
+    [options, text, selectedLabel, value],
+  );
+
+  // Keep the keyboard-highlighted suggestion in view as the arrows move past the fifth.
+  useEffect(() => {
+    if (!open) return;
+    const row = listRef.current?.children[active] as HTMLElement | undefined;
+    row?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
+
+  const choose = (item: FilterOption) => {
+    setText(item.label);
+    setOpen(false);
+    onChange(String(item.id));
+  };
+
+  const type = (next: string) => {
+    setText(next);
+    setOpen(true);
+    setActive(0);
+    if (value) onChange("");
+  };
+
+  const keyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!open) setOpen(true);
+      else setActive((i) => Math.min(i + 1, matches.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((i) => Math.max(i - 1, 0));
+    } else if (event.key === "Enter" && open && matches[active]) {
+      event.preventDefault();
+      choose(matches[active]);
+    } else if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+    }
+  };
+
+  const blur = () => {
+    setOpen(false);
+    // Free text that was never picked from the list is not a filter.
+    if (!value) setText("");
+  };
+
+  const showList = open && !empty;
+
   return (
-    <label>
+    <label className="combo">
       <span>{label}</span>
-      <select
-        value={value}
-        disabled={empty}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="">{empty ? t("search.noneAvailable") : t("common.any")}</option>
-        {options.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+      <div className="combo-field">
+        <input
+          type="text"
+          role="combobox"
+          aria-expanded={showList}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={showList && matches[active] ? `${listId}-${active}` : undefined}
+          autoComplete="off"
+          value={text}
+          disabled={empty}
+          placeholder={empty ? t("search.noneAvailable") : placeholder}
+          onChange={(event) => type(event.target.value)}
+          onFocus={() => {
+            setOpen(true);
+            setActive(0);
+          }}
+          onBlur={blur}
+          onKeyDown={keyDown}
+        />
+        {showList && (
+          <ul className="combo-list" id={listId} role="listbox" ref={listRef}>
+            {matches.length === 0 ? (
+              <li className="combo-empty">{t("search.noMatches")}</li>
+            ) : (
+              matches.map((item, index) => (
+                <li
+                  key={item.id}
+                  id={`${listId}-${index}`}
+                  role="option"
+                  aria-selected={index === active}
+                  className={index === active ? "active" : undefined}
+                  // mousedown, not click: it fires before the input's blur closes the list.
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    choose(item);
+                  }}
+                  onMouseEnter={() => setActive(index)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" className="combo-icon">
+                    <circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <path d="m20 20-4.2-4.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  <span>
+                    <Highlight label={item.label} query={text} />
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+      </div>
       {value && (
         <button
           type="button"

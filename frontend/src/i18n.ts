@@ -176,6 +176,12 @@ const en = {
   "search.showMore": "Show more ({shown} of {total})",
   "search.noneAvailable": "None available",
   "search.viewDetails": "View details",
+  "search.placeholder.institution": "Enter an institution",
+  "search.placeholder.instrument": "Enter an instrument",
+  "search.placeholder.analysis": "Enter an analysis",
+  "search.placeholder.organism": "Enter a target organism",
+  "search.placeholder.researcher": "Enter a researcher",
+  "search.noMatches": "No matches",
 
   // --- Near me -------------------------------------------------------------
   "nearby.title": "Institutions near you",
@@ -590,6 +596,12 @@ const sr: Record<MessageKey, string> = {
   "search.showMore": "Prikaži još ({shown} od {total})",
   "search.noneAvailable": "Nema dostupnih",
   "search.viewDetails": "Prikaži detalje",
+  "search.placeholder.institution": "Unesite ustanovu",
+  "search.placeholder.instrument": "Unesite instrument",
+  "search.placeholder.analysis": "Unesite analizu",
+  "search.placeholder.organism": "Unesite ciljni organizam",
+  "search.placeholder.researcher": "Unesite istraživača",
+  "search.noMatches": "Nema rezultata",
 
   // --- Near me -------------------------------------------------------------
   "nearby.title": "Ustanove u vašoj blizini",
