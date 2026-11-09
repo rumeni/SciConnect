@@ -901,7 +901,7 @@ a.partner-card:hover { border-color: var(--accent-bright); }
   pointer-events: none;
 }
 .landing-title { font-weight: 750; letter-spacing: -.05em; line-height: 1.06; }
-.landing-lede { color: #d6e1ed; line-height: 1.8; }
+.landing-hero .landing-lede { color: #d6e1ed; line-height: 1.8; }
 .landing-cta { background: #e36d45; }
 .landing-cta:hover { background: #f58a61; }
 .node circle { stroke-width: 2.5; }
@@ -987,7 +987,7 @@ a.partner-card:hover { border-color: var(--accent-bright); }
 
 @media (max-width: 900px) {
   .landing-nav { justify-content: flex-start; margin: -28px 0 -24px; }
-  .landing-about { gap: 40px; padding: 0; }
+  .landing-about { grid-template-columns: minmax(0, 1fr); gap: 40px; padding: 0; }
   .landing-about article,
   .landing-about article + article { padding: 0; border-left: 0; }
   .landing-features { padding: 56px 0; }
@@ -1175,4 +1175,114 @@ a.partner-card:hover { border-color: var(--accent-bright); }
 @media (min-width: 1100px) {
   .filters { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; padding: 22px 20px; }
   .filters input { padding: 11px 10px; font-size: .9rem; text-overflow: ellipsis; }
+}
+
+/* --- Phone ------------------------------------------------------------------
+   One column, less padding, and headers laid out on a grid so the logo, the
+   language switch and the buttons line up instead of wrapping unevenly. */
+@media (max-width: 620px) {
+  main { width: calc(100% - 28px); padding: 20px 0 48px; }
+  .brand-logo { width: 84px; }
+
+  /* Headers: logo and language on the first row, two equal buttons below. */
+  .landing-head,
+  .workspace-head {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 12px 10px;
+    margin-bottom: 0;
+  }
+  .head-actions,
+  .session-bar { display: contents; }
+  .landing-head .brand,
+  .workspace-head .brand { grid-column: 1; grid-row: 1; }
+  .landing-head .lang-switch,
+  .workspace-head .lang-switch { grid-column: 2; grid-row: 1; justify-self: end; }
+  .partners-link,
+  .contact-link,
+  .session-bar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: .88rem;
+    text-align: center;
+  }
+  .session-bar p { grid-column: 1 / -1; font-size: .84rem; }
+  .session-bar button,
+  .partners-link,
+  .contact-link { align-self: stretch; }
+  .session-bar .link-button { color: var(--navy-ink); background: var(--navy); border-radius: 6px; font-weight: 700; }
+  .session-bar.admin button { grid-column: 1 / -1; }
+  .workspace-head { margin-bottom: 22px; }
+
+  /* Section links: one row that scrolls sideways instead of four ragged rows. */
+  .landing-nav {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    margin: -20px -14px -16px;
+    padding: 2px 14px 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .landing-nav::-webkit-scrollbar { display: none; }
+  .landing-nav a { flex: none; padding: 9px 12px; font-size: .78rem; white-space: nowrap; }
+
+  .landing { gap: 40px; }
+  .landing-hero { gap: 26px; padding: 30px 20px; border-radius: 12px; }
+  .landing-title { font-size: 2.15rem; margin-bottom: 16px; }
+  .landing-lede { font-size: 1rem; line-height: 1.65; margin-bottom: 22px; }
+  .landing-cta { width: 100%; }
+  .graph-question { padding: 9px 10px; font-size: .9rem; }
+  .graph-why { margin: 10px 10px 0; }
+
+  .landing-about h2 { margin-bottom: 22px; font-size: 1.8rem; }
+  .landing-about h2::after { margin-top: 16px; }
+  .landing-about p:not(.eyebrow) { font-size: .97rem; line-height: 1.7; }
+  .landing-features { padding: 44px 0; }
+  .section-intro { margin-bottom: 26px; }
+  .section-intro h2 { font-size: 1.7rem; }
+  .feature-cards { gap: 12px; }
+  .feature-card { padding: 22px 20px; }
+  .feature-symbol { margin-bottom: 12px; font-size: 1.7rem; }
+  .choice { padding: 22px 20px; }
+  .choice button { width: 100%; }
+
+  /* Search: two filters per row and the buttons side by side. */
+  .tabs { margin-bottom: 14px; }
+  .tab { flex: 1; text-align: center; }
+  .entity-search { margin-bottom: 14px; }
+  .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; padding: 16px 14px; }
+  .filters label span { margin-bottom: 5px; font-size: .66rem; }
+  .filters input { padding: 10px; font-size: .88rem; text-overflow: ellipsis; }
+  .filters .actions { flex-direction: row; padding-top: 4px; }
+  .filters .actions .primary { flex: 1; }
+  .filter-detail { margin-top: 5px; font-size: .74rem; }
+  .combo-list { max-width: calc(100vw - 28px); }
+
+  .results { margin-top: 30px; }
+  h2 { font-size: 1.6rem; }
+  .results-heading { align-items: center; }
+  .result-list .result-card { gap: 14px; padding: 18px 16px; }
+  .result-head h3 .title-button { font-size: 1.2rem; }
+  .result-open { width: 100%; min-height: 44px; }
+  .result-list .chips { gap: 6px; }
+  .result-list .chip { padding: 5px 9px; font-size: .78rem; }
+  .analysis-rows li { padding: 9px 0; }
+  .results-hint { font-size: .8rem; }
+
+  .nearby-legend { gap: 8px 16px; }
+  .map-tall { height: 340px; }
+}
+
+/* Contact and Partners intros sit on the light page, so they get dark text. */
+.partners-intro .landing-lede { color: var(--text-strong); }
+
+/* The hero headline, a notch smaller than the shared title size. */
+.landing-hero .landing-title { font-size: clamp(2.1rem, 4.4vw, 3.4rem); }
+@media (max-width: 620px) {
+  .landing-hero .landing-title { font-size: 1.9rem; }
 }

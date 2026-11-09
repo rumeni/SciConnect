@@ -175,8 +175,8 @@ function jumpTo(target: HTMLElement | null) {
 /** In-page links in the bar under the header. */
 const SECTIONS: { id: string; label: MessageKey }[] = [
   { id: "problem", label: "landing.nav.problem" },
-  { id: "features", label: "landing.nav.features" },
   { id: "mission", label: "landing.nav.mission" },
+  { id: "features", label: "landing.nav.features" },
 ];
 
 const FEATURES: { symbol: string; title: MessageKey; text: MessageKey }[] = [

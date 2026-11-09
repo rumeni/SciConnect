@@ -520,9 +520,9 @@ const sr: Record<MessageKey, string> = {
   // --- Start page --------------------------------------------------------
   "landing.partners": "Partneri i sponzori",
   "landing.contact": "Kontaktirajte nas",
-  "landing.title": "Pronađite laboratoriju koja može da uradi vašu analizu.",
+  "landing.title": "Pronađite laboratoriju koja može da uradi Vašu analizu.",
   "landing.lede":
-    "SciConnect beleži koje ustanove poseduju koje instrumente, koje analize na njima nude, ko te analize izvodi i na koje mikroorganizme su usmerene. Zatražite tačno onu kombinaciju koja vam treba i dobijte mesta koja imaju sve to.",
+    "SciConnect beleži koje ustanove poseduju koje instrumente, koje analize na njima nude, ko te analize izvodi i na koje mikroorganizme su usmerene. Zatražite tačno onu kombinaciju koja Vam treba i dobijte mesta koja imaju sve to.",
   "landing.cta": "Isprobajte",
   "landing.nav": "Delovi stranice",
   "landing.nav.problem": "Problem koji rešavamo",
@@ -616,7 +616,7 @@ const sr: Record<MessageKey, string> = {
   // --- Contact page --------------------------------------------------------
   "contact.title": "Kontakt",
   "contact.lede":
-    "Imate pitanje, želite da vaša ustanova bude u katalogu ili da postanete partner ili sponzor? Pišite nam.",
+    "Imate pitanje, želite da Vaša ustanova bude u katalogu ili da postanete partner ili sponzor? Pišite nam.",
   "contact.email": "E-pošta",
   "contact.write": "Pošaljite mejl",
   "footer.tagline": "© {year} SciConnect. Povezujemo nauku i prilike.",
@@ -700,24 +700,24 @@ const sr: Record<MessageKey, string> = {
   "search.noMatches": "Nema rezultata",
 
   // --- Near me -------------------------------------------------------------
-  "nearby.title": "Ustanove u vašoj blizini",
+  "nearby.title": "Ustanove u Vašoj blizini",
   "nearby.intro":
     "Podelite lokaciju i katalog će biti prikazan na mapi oko nje, najbliže prvo. Ništa se ne deli dok to sami ne izaberete.",
   "nearby.share": "Podelite lokaciju",
   "nearby.placed": "Na mapi: {count}",
   "nearby.measuredFrom": "Mereno od: {place}.",
-  "nearby.deviceNote": "Ova pozicija ostaje u vašem pregledaču.",
+  "nearby.deviceNote": "Ova pozicija ostaje u Vašem pregledaču.",
   "nearby.addressNote": "Serveru je poslata samo adresa koju ste uneli.",
   "nearby.none": "Nijedna ustanova u katalogu još nema lokaciju.",
   "nearby.different": "Koristi drugu lokaciju",
   "nearby.forget": "Zaboravi moju lokaciju",
-  "nearby.mapLabel": "Mapa ustanova u vašoj blizini",
+  "nearby.mapLabel": "Mapa ustanova u Vašoj blizini",
   "nearby.legendMatch": "Odgovara pretrazi ({count})",
   "nearby.legendOther": "Ostale ustanove",
   "nearby.onlyMatches": "Prikaži samo pronađene",
   "nearby.matchTag": "Odgovara pretrazi",
   "nearby.mapOf": "Mapa: {place}",
-  "nearby.deviceLabel": "Lokacija vašeg uređaja",
+  "nearby.deviceLabel": "Lokacija Vašeg uređaja",
   "nearby.metres": "{value} m daleko",
   "nearby.kilometres": "{value} km daleko",
   "nearby.noGeolocation": "Ovaj pregledač ne može da podeli lokaciju.",
@@ -725,12 +725,12 @@ const sr: Record<MessageKey, string> = {
   "nearby.unknown": "Vaša lokacija nije mogla da se odredi.",
 
   // --- Location prompt -----------------------------------------------------
-  "prompt.eyebrow": "Ustanove u vašoj blizini",
+  "prompt.eyebrow": "Ustanove u Vašoj blizini",
   "prompt.title": "Želite li da podelite gde se nalazite?",
   "prompt.intro":
     "Ako podelite lokaciju, ustanove iz kataloga biće prikazane na mapi oko nje, najbliže prvo. Ceo katalog možete pretraživati i bez deljenja bilo čega.",
   "prompt.useDevice": "Koristi lokaciju mog uređaja",
-  "prompt.waiting": "Čeka se vaš pregledač…",
+  "prompt.waiting": "Čeka se Vaš pregledač…",
   "prompt.deviceNote":
     "Pregledač će zatražiti dozvolu. Pozicija ostaje u ovom pregledaču i nikada se ne šalje serveru.",
   "prompt.addressLabel": "Ili unesite adresu",
