@@ -76,6 +76,8 @@ class CapabilitySearchResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    # Every matching institution, not just this page, so a map can mark them all.
+    institution_ids: list[int] = []
 
 
 class InstitutionMapPoint(ORMModel):
@@ -140,6 +142,7 @@ class FilterOptions(BaseModel):
     analysis_types: list[FilterOption]
     microorganisms: list[FilterOption]
     researchers: list[FilterOption]
+    cities: list[str] = []
 
 
 class CatalogItem(ORMModel):

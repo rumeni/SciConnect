@@ -5,8 +5,8 @@ import { useT } from "./i18n";
  *
  * Files are served from this site (`frontend/public/brand/`), which the page's
  * Content-Security-Policy requires. The full logo has a transparent background
- * and comes in two inks: navy for the light theme and white for the dark one,
- * picked by the same `prefers-color-scheme` query the stylesheet uses.
+ * and comes in two inks; the site is light, so it uses the navy one (the white
+ * ink, `sciconnect-logo-dark.webp`, is kept for dark backgrounds).
  *
  * `BrandMark` is the psi alone, for places too narrow for the wordmark.
  */
@@ -44,10 +44,9 @@ export function Brand({ onHome }: { onHome: () => void }) {
       }}
     >
       <picture>
-        <source media="(prefers-color-scheme: light)" srcSet="/brand/sciconnect-logo.webp" />
         <img
           className="brand-logo"
-          src="/brand/sciconnect-logo-dark.webp"
+          src="/brand/sciconnect-logo.webp"
           alt={t("brand.alt")}
           width={960}
           height={887}

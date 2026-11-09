@@ -2,18 +2,30 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useT } from "./i18n";
-import { addBaseLayer, institutionMarker, popupNode, viewerMarker } from "./mapLayer";
+import {
+  addBaseLayer,
+  institutionMarker,
+  popupNode,
+  viewerMarker,
+  type MarkerTone,
+} from "./mapLayer";
 import { formatDistance, placeName, type NearbyInstitution } from "./viewerLocation";
 import type { EntityRef, ViewerLocation } from "./types";
 
-/** A zoomable map of the catalogue around one point, nearest institutions marked. */
+/**
+ * A zoomable map of the catalogue around one point, nearest institutions marked.
+ * With `matching` set, institutions that answer the current search are drawn
+ * green and the rest faded grey, and the view frames the matches.
+ */
 export function NearbyMap({
   origin,
   institutions,
+  matching,
   onOpen,
 }: {
   origin: ViewerLocation;
   institutions: NearbyInstitution[];
+  matching: Set<number> | null;
   onOpen: (ref: EntityRef) => void;
 }) {
   const t = useT();
@@ -48,10 +60,19 @@ export function NearbyMap({
       .addTo(instance);
     drawn.push(here);
 
-    for (const institution of institutions) {
-      const marker = institutionMarker(institution.latitude, institution.longitude).addTo(
-        instance,
-      );
+    const toneOf = (id: number): MarkerTone =>
+      matching ? (matching.has(id) ? "match" : "other") : "plain";
+    // Non-matches first, so the matches are drawn on top of them.
+    const ordered = [...institutions].sort(
+      (a, b) => Number(toneOf(a.id) === "match") - Number(toneOf(b.id) === "match"),
+    );
+
+    for (const institution of ordered) {
+      const marker = institutionMarker(
+        institution.latitude,
+        institution.longitude,
+        toneOf(institution.id),
+      ).addTo(instance);
       const popup = document.createElement("div");
       popup.className = "map-popup";
       const name = document.createElement("button");
@@ -69,11 +90,12 @@ export function NearbyMap({
       drawn.push(marker);
     }
 
+    // Frame the matches when there are any; otherwise everything shown.
+    const matched = matching ? institutions.filter((item) => matching.has(item.id)) : [];
+    const framed = matched.length > 0 ? matched : institutions;
     const bounds = L.latLngBounds([
       [origin.latitude, origin.longitude],
-      ...institutions.map(
-        (item) => [item.latitude, item.longitude] as [number, number],
-      ),
+      ...framed.map((item) => [item.latitude, item.longitude] as [number, number]),
     ]);
     instance.invalidateSize();
     instance.fitBounds(bounds, { padding: [36, 36], maxZoom: 13 });
@@ -81,7 +103,7 @@ export function NearbyMap({
     return () => {
       drawn.forEach((layer) => layer.remove());
     };
-  }, [origin.latitude, origin.longitude, originLabel, institutions]);
+  }, [origin.latitude, origin.longitude, originLabel, institutions, matching]);
 
   return (
     <div className="map-wrap">

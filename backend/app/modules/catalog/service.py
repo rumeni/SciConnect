@@ -1,4 +1,5 @@
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 
 from sqlalchemy import Select, exists, func, select
@@ -165,7 +166,9 @@ def search_capabilities(
     offset: int = 0,
 ) -> CapabilitySearchResponse:
     base = _base_query(filters)
-    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+    matching = base.subquery()
+    institution_ids = list(db.scalars(select(matching.c.id).order_by(matching.c.name)))
+    total = len(institution_ids)
 
     query = (
         base.options(*_capability_loads())
@@ -177,7 +180,13 @@ def search_capabilities(
 
     results = [_result_for(institution, filters) for institution in institutions]
 
-    return CapabilitySearchResponse(items=results, total=total, limit=limit, offset=offset)
+    return CapabilitySearchResponse(
+        items=results,
+        total=total,
+        limit=limit,
+        offset=offset,
+        institution_ids=institution_ids,
+    )
 
 
 def _capability_loads() -> list:
@@ -556,7 +565,7 @@ def _researcher_pairs(
 
 
 def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
-    def without(**cleared: list[int]) -> tuple[list[CapabilityResult], CapabilityFilters]:
+    def without(**cleared: object) -> tuple[list[CapabilityResult], CapabilityFilters]:
         narrowed = replace(filters, **cleared)
         return _matching_results(db, narrowed), narrowed
 
@@ -565,6 +574,7 @@ def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
     analyses, _ = without(analysis_type_ids=[])
     organisms, _ = without(microorganism_ids=[])
     researchers, researcher_filters = without(researcher_ids=[])
+    places, _ = without(city=None)
 
     return FilterOptions(
         institutions=_options(
@@ -587,7 +597,18 @@ def filter_options(db: Session, filters: CapabilityFilters) -> FilterOptions:
             ]
         ),
         researchers=_options(_researcher_pairs(researchers, researcher_filters)),
+        cities=_cities(item.institution.city for item in places),
     )
+
+
+def _cities(names: Iterable[str]) -> list[str]:
+    """Each city once, whatever its capitalisation, in alphabetical order."""
+    found: dict[str, str] = {}
+    for name in names:
+        cleaned = name.strip()
+        if cleaned:
+            found.setdefault(cleaned.casefold(), cleaned)
+    return sorted(found.values(), key=str.casefold)
 
 
 # --- Removal ----------------------------------------------------------------

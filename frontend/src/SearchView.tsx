@@ -1,24 +1,23 @@
 import {
   FormEvent,
   KeyboardEvent,
-  ReactNode,
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { useT } from "./i18n";
+import { useT, type MessageKey, type Translate } from "./i18n";
 import type {
   EntityRef,
-  FilterOption,
+  CapabilityResult,
   FilterOptions,
-  ResearcherMatch,
   SearchResponse,
 } from "./types";
 
 export type Filters = {
   institution_ids: string;
+  city: string;
   instrument_type_ids: string;
   analysis_type_ids: string;
   microorganism_ids: string;
@@ -27,28 +26,12 @@ export type Filters = {
 
 export const emptyFilters: Filters = {
   institution_ids: "",
+  city: "",
   instrument_type_ids: "",
   analysis_type_ids: "",
   microorganism_ids: "",
   researcher_ids: "",
 };
-
-/** A chip that opens the entity it names. */
-function Chip({
-  label,
-  entity,
-  onOpen,
-}: {
-  label: string;
-  entity: EntityRef;
-  onOpen: (ref: EntityRef) => void;
-}) {
-  return (
-    <button type="button" className="chip" onClick={() => onOpen(entity)}>
-      {label}
-    </button>
-  );
-}
 
 export function SearchView({
   options,
@@ -57,6 +40,9 @@ export function SearchView({
   onSearch,
   onLoadMore,
   onClear,
+  applied,
+  onRemoveFilter,
+  filterLabel,
   onOpen,
   results,
   loading,
@@ -68,12 +54,20 @@ export function SearchView({
   onSearch: () => void;
   onLoadMore: () => void;
   onClear: () => void;
+  applied: Filters;
+  onRemoveFilter: (name: keyof Filters) => void;
+  filterLabel: (name: keyof Filters, id: number) => string;
   onOpen: (ref: EntityRef) => void;
   results: SearchResponse | null;
   loading: boolean;
   error: string;
 }) {
   const t = useT();
+  // A city is its own value; there is no record behind it to open.
+  const cityChoices = useMemo(
+    () => (options.cities ?? []).map((city) => ({ id: city, label: city })),
+    [options.cities],
+  );
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -91,6 +85,14 @@ export function SearchView({
           onChange={(value) => onFilterChange("institution_ids", value)}
           onOpen={onOpen}
           options={options.institutions}
+        />
+        <FilterSelect
+          label={t("search.city")}
+          placeholder={t("search.placeholder.city")}
+          value={filters.city}
+          onChange={(value) => onFilterChange("city", value)}
+          onOpen={onOpen}
+          options={cityChoices}
         />
         <FilterSelect
           label={t("search.instrument")}
@@ -151,90 +153,20 @@ export function SearchView({
         {!loading && !error && results?.items.length === 0 && (
           <p className="empty">{t("search.none")}</p>
         )}
+        <AppliedFilters
+          applied={applied}
+          filterLabel={filterLabel}
+          onRemove={onRemoveFilter}
+        />
         <p className="results-hint">{t("search.hint")}</p>
-        <div className="result-grid">
+        <div className="result-list">
           {results?.items.map((result) => (
-            <article className="result-card" key={result.institution.id}>
-              <div>
-                <p className="location">
-                  {result.institution.city}, {result.institution.country}
-                </p>
-                <h3>
-                  <button
-                    type="button"
-                    className="title-button"
-                    onClick={() => onOpen({ kind: "institution", id: result.institution.id })}
-                  >
-                    {result.institution.name}
-                  </button>
-                </h3>
-              </div>
-              {result.matched_instruments.length > 0 && (
-                <Group title={t("search.matchedInstruments")}>
-                  {result.matched_instruments.map((item) => (
-                    <Chip
-                      key={item.id}
-                      label={item.display_name || item.type_name}
-                      entity={{ kind: "instrument", id: item.id }}
-                      onOpen={onOpen}
-                    />
-                  ))}
-                </Group>
-              )}
-              {result.matched_researchers.length > 0 && (
-                <PeopleGroup
-                  title={t("search.researchers")}
-                  people={result.matched_researchers}
-                  onOpen={onOpen}
-                />
-              )}
-              {result.matched_analyses.map((analysis) => (
-                <div className="offering" key={analysis.id}>
-                  <div className="offering-title">
-                    <button
-                      type="button"
-                      className="title-button strong"
-                      onClick={() => onOpen({ kind: "analysis", id: analysis.id })}
-                    >
-                      {analysis.public_name || analysis.type_name}
-                    </button>
-                    <span>{analysis.availability}</span>
-                  </div>
-                  {analysis.turnaround_days && (
-                    <p>{t("search.turnaround", { days: analysis.turnaround_days })}</p>
-                  )}
-                  {analysis.instruments.length > 0 && (
-                    <Group title={t("search.uses")}>
-                      {analysis.instruments.map((item) => (
-                        <Chip
-                          key={item.id}
-                          label={item.display_name || item.type_name}
-                          entity={{ kind: "instrument", id: item.id }}
-                          onOpen={onOpen}
-                        />
-                      ))}
-                    </Group>
-                  )}
-                  {analysis.targets.length > 0 && (
-                    <Group title={t("search.targets")}>
-                      {analysis.targets.map((item) => (
-                        <Chip
-                          key={item.id}
-                          label={item.scientific_name}
-                          entity={{ kind: "microorganism", id: item.id }}
-                          onOpen={onOpen}
-                        />
-                      ))}
-                    </Group>
-                  )}
-                  <PeopleGroup
-                    title={t("search.performedBy")}
-                    people={analysis.researchers}
-                    onOpen={onOpen}
-                  />
-                </div>
-              ))}
-            </article>
+            <ResultCard
+              key={result.institution.id}
+              result={result}
+              applied={applied}
+              onOpen={onOpen}
+            />
           ))}
         </div>
         {results && results.items.length < results.total && (
@@ -268,11 +200,14 @@ function fold(text: string): string {
     .toLowerCase();
 }
 
+/** A value a filter can take: a record id, or for the city its name. */
+type Choice = { id: number | string; label: string };
+
 /** Every option matching the query, ranked: whole-label prefixes first, then word prefixes, then anywhere. */
-function suggest(options: FilterOption[], query: string): FilterOption[] {
+function suggest<T extends Choice>(options: T[], query: string): T[] {
   const q = fold(query.trim());
   if (!q) return options;
-  const ranked: { item: FilterOption; rank: number }[] = [];
+  const ranked: { item: T; rank: number }[] = [];
   for (const item of options) {
     const label = fold(item.label);
     const at = label.indexOf(q);
@@ -317,11 +252,12 @@ function FilterSelect({
 }: {
   label: string;
   placeholder: string;
-  kind: EntityRef["kind"];
+  /** The record kind behind the values, if any, so the choice can be opened. */
+  kind?: EntityRef["kind"];
   value: string;
   onChange: (value: string) => void;
   onOpen: (ref: EntityRef) => void;
-  options: FilterOption[];
+  options: Choice[];
 }) {
   const t = useT();
   const listId = useId();
@@ -350,7 +286,7 @@ function FilterSelect({
     row?.scrollIntoView({ block: "nearest" });
   }, [active, open]);
 
-  const choose = (item: FilterOption) => {
+  const choose = (item: Choice) => {
     setText(item.label);
     setOpen(false);
     onChange(String(item.id));
@@ -443,7 +379,7 @@ function FilterSelect({
           </ul>
         )}
       </div>
-      {value && (
+      {value && kind && (
         <button
           type="button"
           className="link-button filter-detail"
@@ -456,44 +392,317 @@ function FilterSelect({
   );
 }
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+/* --- Results ---------------------------------------------------------------- */
+
+const FILTER_ORDER: (keyof Filters)[] = [
+  "institution_ids",
+  "city",
+  "analysis_type_ids",
+  "instrument_type_ids",
+  "microorganism_ids",
+  "researcher_ids",
+];
+
+const FILTER_TITLE: Record<keyof Filters, MessageKey> = {
+  institution_ids: "search.institution",
+  city: "search.city",
+  instrument_type_ids: "search.instrument",
+  analysis_type_ids: "search.analysis",
+  microorganism_ids: "search.organism",
+  researcher_ids: "search.researcher",
+};
+
+/** The filters the results were found with, each removable on its own. */
+function AppliedFilters({
+  applied,
+  filterLabel,
+  onRemove,
+}: {
+  applied: Filters;
+  filterLabel: (name: keyof Filters, id: number) => string;
+  onRemove: (name: keyof Filters) => void;
+}) {
+  const t = useT();
+  const active = FILTER_ORDER.filter((name) => applied[name]);
+  if (active.length === 0) return null;
   return (
-    <div className="capability-group">
-      <small>{title}</small>
-      <div className="chips">{children}</div>
+    <div className="applied-filters">
+      <span className="applied-title">{t("search.applied")}</span>
+      {active.map((name) => {
+        const label = name === "city" ? applied.city : filterLabel(name, Number(applied[name]));
+        const remove = t("search.removeFilter", { name: label });
+        return (
+          <span className="applied-chip" key={name}>
+            <span className="applied-kind">{t(FILTER_TITLE[name])}:</span> {label}
+            <button type="button" aria-label={remove} title={remove} onClick={() => onRemove(name)}>
+              ×
+            </button>
+          </span>
+        );
+      })}
     </div>
   );
 }
 
-function PeopleGroup({
-  title,
-  people,
+/** Serbian counts take three forms (1 analiza, 2 analize, 5 analiza); English uses two. */
+function counted(t: Translate, noun: "analysis" | "instrument" | "researcher", count: number) {
+  const tens = count % 100;
+  const ones = count % 10;
+  const form =
+    ones === 1 && tens !== 11
+      ? "one"
+      : ones >= 2 && ones <= 4 && (tens < 12 || tens > 14)
+        ? "few"
+        : "many";
+  return t(`search.n.${noun}.${form}` as MessageKey, { count });
+}
+
+const AVAILABILITY = new Set(["available", "limited", "unavailable", "archived"]);
+
+type Reason = { key: string; label: string; entity: EntityRef };
+
+/** What in this result answers the search: the records behind each active filter. */
+function matchReasons(result: CapabilityResult, applied: Filters): Reason[] {
+  const reasons: Reason[] = [];
+  const want = (name: keyof Filters) => (applied[name] ? Number(applied[name]) : null);
+
+  const analysisType = want("analysis_type_ids");
+  if (analysisType !== null) {
+    for (const item of result.matched_analyses) {
+      if (item.analysis_type_id !== analysisType) continue;
+      reasons.push({
+        key: `a${item.id}`,
+        label: item.public_name || item.type_name,
+        entity: { kind: "analysis", id: item.id },
+      });
+    }
+  }
+  const instrumentType = want("instrument_type_ids");
+  if (instrumentType !== null) {
+    for (const item of result.matched_instruments) {
+      if (item.instrument_type_id !== instrumentType) continue;
+      reasons.push({
+        key: `i${item.id}`,
+        label: item.display_name || item.type_name,
+        entity: { kind: "instrument", id: item.id },
+      });
+    }
+  }
+  const organism = want("microorganism_ids");
+  if (organism !== null) {
+    const target = result.matched_analyses
+      .flatMap((analysis) => analysis.targets)
+      .find((item) => item.id === organism);
+    if (target) {
+      reasons.push({
+        key: `m${target.id}`,
+        label: target.scientific_name,
+        entity: { kind: "microorganism", id: target.id },
+      });
+    }
+  }
+  const researcher = want("researcher_ids");
+  if (researcher !== null) {
+    const person =
+      result.matched_researchers.find((item) => item.id === researcher) ??
+      result.matched_analyses
+        .flatMap((analysis) => analysis.researchers)
+        .find((item) => item.id === researcher);
+    if (person) {
+      reasons.push({
+        key: `r${person.id}`,
+        label: person.full_name,
+        entity: { kind: "researcher", id: person.id },
+      });
+    }
+  }
+  return reasons;
+}
+
+const SHOWN_ANALYSES = 3;
+const SHOWN_CHIPS = 4;
+
+/**
+ * One institution, kept short: what it is, how much it offers, why it matched,
+ * and its first few analyses. The rest opens in place or in the detail panel.
+ */
+function ResultCard({
+  result,
+  applied,
   onOpen,
 }: {
-  title: string;
-  people: ResearcherMatch[];
+  result: CapabilityResult;
+  applied: Filters;
   onOpen: (ref: EntityRef) => void;
 }) {
-  if (people.length === 0) return null;
+  const t = useT();
+  const [expanded, setExpanded] = useState(false);
+  const { institution, matched_analyses: analyses, matched_instruments: instruments } = result;
+
+  // Everyone involved, listed once: staff and the people who run the analyses.
+  const people = useMemo(() => {
+    const seen = new Map<number, string>();
+    for (const person of result.matched_researchers) seen.set(person.id, person.full_name);
+    for (const analysis of result.matched_analyses) {
+      for (const person of analysis.researchers) seen.set(person.id, person.full_name);
+    }
+    return [...seen].map(([id, name]) => ({ id, name }));
+  }, [result]);
+
+  const reasons = matchReasons(result, applied);
+  const shownAnalyses = expanded ? analyses : analyses.slice(0, SHOWN_ANALYSES);
+  const shownInstruments = expanded ? instruments : instruments.slice(0, SHOWN_CHIPS);
+  const shownPeople = expanded ? people : people.slice(0, SHOWN_CHIPS);
+  const hidden =
+    analyses.length -
+    shownAnalyses.length +
+    instruments.length -
+    shownInstruments.length +
+    people.length -
+    shownPeople.length;
+
+  const summary = [
+    analyses.length > 0 && counted(t, "analysis", analyses.length),
+    instruments.length > 0 && counted(t, "instrument", instruments.length),
+    people.length > 0 && counted(t, "researcher", people.length),
+  ].filter(Boolean);
+
+  const openInstitution = () => onOpen({ kind: "institution", id: institution.id });
+
   return (
-    <div className="capability-group">
-      <small>{title}</small>
-      <ul className="people">
-        {people.map((person) => (
-          <li key={person.id}>
-            <button
-              type="button"
-              className="title-button strong"
-              onClick={() => onOpen({ kind: "researcher", id: person.id })}
-            >
-              {person.full_name}
+    <article className="result-card">
+      <header className="result-head">
+        <div>
+          <p className="location">
+            {institution.city}, {institution.country}
+          </p>
+          <h3>
+            <button type="button" className="title-button" onClick={openInstitution}>
+              {institution.name}
             </button>
-            {person.role && <em className="role">{person.role}</em>}
-            {person.title && <span className="person-title">{person.title}</span>}
-            {person.expertise && <span className="person-expertise">{person.expertise}</span>}
-          </li>
-        ))}
-      </ul>
-    </div>
+          </h3>
+          {summary.length > 0 && <p className="result-summary">{summary.join(" · ")}</p>}
+        </div>
+        <button type="button" className="secondary result-open" onClick={openInstitution}>
+          {t("search.openInstitution")} →
+        </button>
+      </header>
+
+      {reasons.length > 0 && (
+        <div className="result-why">
+          <small>{t("search.matchesSearch")}</small>
+          <div className="chips">
+            {reasons.map((reason) => (
+              <button
+                key={reason.key}
+                type="button"
+                className="chip chip-match"
+                onClick={() => onOpen(reason.entity)}
+              >
+                <span aria-hidden="true">✓</span> {reason.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analyses.length > 0 && (
+        <div className="result-block">
+          <small>{t("search.analyses")}</small>
+          <ul className="analysis-rows">
+            {shownAnalyses.map((analysis) => (
+              <li key={analysis.id}>
+                <div className="analysis-line">
+                  <button
+                    type="button"
+                    className="title-button strong"
+                    onClick={() => onOpen({ kind: "analysis", id: analysis.id })}
+                  >
+                    {analysis.public_name || analysis.type_name}
+                  </button>
+                  {analysis.turnaround_days && (
+                    <span className="analysis-meta">
+                      {t("search.turnaround", { days: analysis.turnaround_days })}
+                    </span>
+                  )}
+                  <span className={`availability availability-${analysis.availability}`}>
+                    {AVAILABILITY.has(analysis.availability)
+                      ? t(`status.${analysis.availability}` as MessageKey)
+                      : analysis.availability}
+                  </span>
+                </div>
+                {analysis.researchers.length > 0 && (
+                  <p className="analysis-people">
+                    {t("search.performedBy")}:{" "}
+                    {analysis.researchers.map((person, index) => (
+                      <span key={person.id}>
+                        {index > 0 && ", "}
+                        <button
+                          type="button"
+                          className="title-button"
+                          onClick={() => onOpen({ kind: "researcher", id: person.id })}
+                        >
+                          {person.full_name}
+                        </button>
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(instruments.length > 0 || people.length > 0) && (
+        <div className="result-meta-grid">
+          {instruments.length > 0 && (
+            <div className="result-block">
+              <small>{t("search.instruments")}</small>
+              <div className="chips">
+                {shownInstruments.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="chip"
+                    onClick={() => onOpen({ kind: "instrument", id: item.id })}
+                  >
+                    {item.display_name || item.type_name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {people.length > 0 && (
+            <div className="result-block">
+              <small>{t("search.researchers")}</small>
+              <div className="chips">
+                {shownPeople.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className="chip"
+                    onClick={() => onOpen({ kind: "researcher", id: person.id })}
+                  >
+                    {person.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(expanded || hidden > 0) && (
+        <button
+          type="button"
+          className="link-button result-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((open) => !open)}
+        >
+          {expanded ? t("search.showLess") : `${t("search.showAll")} (+${hidden})`}
+        </button>
+      )}
+    </article>
   );
 }

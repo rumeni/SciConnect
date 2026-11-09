@@ -53,11 +53,36 @@ const en = {
   "landing.lede":
     "SciConnect records which institutions own which instruments, which analyses they offer on them, who performs those analyses, and which microorganisms they target. Ask for the exact combination your work needs and get the places that have all of it.",
   "landing.cta": "Try it",
-  "landing.whyTitle": "Why it exists",
-  "landing.why1":
-    "Equipment and expertise are spread across institutes, faculties and agencies. Today the usual way to find a sequencer, a PCR platform or someone who works with a given pathogen is to know someone who knows.",
-  "landing.why2":
-    "SciConnect writes those connections down. A researcher looking for a partner, a company that needs a test run, or a lab manager planning shared equipment can look it up instead of asking around.",
+  "landing.nav": "Page sections",
+  "landing.nav.problem": "The Problem We're Solving",
+  "landing.nav.features": "What You Can Do",
+  "landing.nav.mission": "Mission & Vision",
+  "landing.nav.enter": "Enter App ↗",
+  "landing.problemEyebrow": "Why SciConnect matters",
+  "landing.problemTitle": "The Problem We're Solving",
+  "landing.problem1":
+    "Scientific expertise, diagnostic capabilities, and laboratory resources are distributed across institutions, but information about them can be outdated, difficult to access, or even missing. SciConnect brings this information together in **one searchable platform**, helping people find the right resources, expertise, and institutional connections.",
+  "landing.problem2":
+    "SciConnect **bridges the information gap** between patients, healthcare professionals, researchers, scientific institutions, and everyone who can benefit from access to **reliable information on diagnostic services, scientific expertise, and laboratory resources**.",
+  "landing.missionEyebrow": "Our purpose",
+  "landing.missionTitle": "Our Mission & Vision",
+  "landing.mission":
+    "**Our mission** is to connect patients, healthcare professionals, researchers, and institutions with the knowledge, expertise, and resources they need.",
+  "landing.vision":
+    "**Our vision** is a world where information flows freely, opportunities are within reach, and every connection drives better healthcare and scientific progress.",
+  "landing.featuresEyebrow": "Explore possibilities",
+  "landing.featuresTitle": "What Can You Do with SciConnect?",
+  "landing.featuresIntro":
+    "From finding a laboratory test to discovering a research partner, SciConnect helps turn scattered information into practical opportunities.",
+  "landing.feature1Title": "Find diagnostic services",
+  "landing.feature1Text":
+    "Search for laboratory analyses, see which institutions offer them, and learn which equipment and technologies they use.",
+  "landing.feature2Title": "Connect with experts",
+  "landing.feature2Text":
+    "Find researchers and specialists in your field, explore their expertise, and identify potential collaborators.",
+  "landing.feature3Title": "Discover research resources",
+  "landing.feature3Text":
+    "Explore institutional capabilities and scientific instruments to identify opportunities for resource sharing and cooperation.",
   "landing.tryTitle": "Try it",
   "landing.guestTitle": "Browse as a guest",
   "landing.guestText":
@@ -124,6 +149,8 @@ const en = {
     "Have a question, want your institution listed in the catalogue, or would like to become a partner or sponsor? Write to us.",
   "contact.email": "Email",
   "contact.write": "Write an email",
+  "footer.tagline": "© {year} SciConnect. Connecting science and opportunity.",
+  "footer.contact": "Contact:",
 
   // --- Workspace ----------------------------------------------------------
   "workspace.admin": "Admin",
@@ -155,18 +182,19 @@ const en = {
 
   // --- Capability search --------------------------------------------------
   "search.institution": "Institution",
+  "search.city": "City",
   "search.instrument": "Instrument",
   "search.analysis": "Analysis",
   "search.organism": "Target organism",
   "search.researcher": "Researcher",
   "search.submit": "Search capabilities",
   "search.clear": "Clear",
-  "search.results": "Matching institutions",
+  "search.results": "Institutions found",
   "search.searching": "Searching…",
   "search.count": "{count} results",
   "search.none": "No institution satisfies the selected combination.",
   "search.hint":
-    "Each filter lists only values that still match the other choices. Select any name below to open its details.",
+    "Each filter lists only values that still match the other choices. Select any name to open its details.",
   "search.matchedInstruments": "Matching instruments",
   "search.researchers": "Researchers",
   "search.uses": "Uses",
@@ -176,7 +204,25 @@ const en = {
   "search.showMore": "Show more ({shown} of {total})",
   "search.noneAvailable": "None available",
   "search.viewDetails": "View details",
+  "search.applied": "Filtered by",
+  "search.removeFilter": "Remove filter: {name}",
+  "search.matchesSearch": "Matches your search",
+  "search.openInstitution": "Details & contact",
+  "search.analyses": "Analyses",
+  "search.instruments": "Instruments",
+  "search.showAll": "Show all",
+  "search.showLess": "Show less",
+  "search.n.analysis.one": "{count} analysis",
+  "search.n.analysis.few": "{count} analyses",
+  "search.n.analysis.many": "{count} analyses",
+  "search.n.instrument.one": "{count} instrument",
+  "search.n.instrument.few": "{count} instruments",
+  "search.n.instrument.many": "{count} instruments",
+  "search.n.researcher.one": "{count} researcher",
+  "search.n.researcher.few": "{count} researchers",
+  "search.n.researcher.many": "{count} researchers",
   "search.placeholder.institution": "Enter an institution",
+  "search.placeholder.city": "Enter a city",
   "search.placeholder.instrument": "Enter an instrument",
   "search.placeholder.analysis": "Enter an analysis",
   "search.placeholder.organism": "Enter a target organism",
@@ -196,6 +242,10 @@ const en = {
   "nearby.different": "Use a different location",
   "nearby.forget": "Forget my location",
   "nearby.mapLabel": "Map of institutions near you",
+  "nearby.legendMatch": "Matches your search ({count})",
+  "nearby.legendOther": "Other institutions",
+  "nearby.onlyMatches": "Show only matches",
+  "nearby.matchTag": "Matches search",
   "nearby.mapOf": "Map of {place}",
   "nearby.deviceLabel": "Your device location",
   "nearby.metres": "{value} m away",
@@ -474,11 +524,36 @@ const sr: Record<MessageKey, string> = {
   "landing.lede":
     "SciConnect beleži koje ustanove poseduju koje instrumente, koje analize na njima nude, ko te analize izvodi i na koje mikroorganizme su usmerene. Zatražite tačno onu kombinaciju koja vam treba i dobijte mesta koja imaju sve to.",
   "landing.cta": "Isprobajte",
-  "landing.whyTitle": "Zašto postoji",
-  "landing.why1":
-    "Oprema i znanje razbacani su po institutima, fakultetima i agencijama. Danas se sekvenser, PCR platforma ili neko ko radi sa određenim patogenom najčešće nalazi tako što poznajete nekoga ko zna.",
-  "landing.why2":
-    "SciConnect te veze zapisuje. Istraživač koji traži saradnika, firma kojoj treba ispitivanje ili rukovodilac laboratorije koji planira zajedničku opremu mogu to da potraže umesto da raspituju.",
+  "landing.nav": "Delovi stranice",
+  "landing.nav.problem": "Problem koji rešavamo",
+  "landing.nav.features": "Šta možete",
+  "landing.nav.mission": "Misija i vizija",
+  "landing.nav.enter": "Uđite u aplikaciju ↗",
+  "landing.problemEyebrow": "Zašto je SciConnect važan",
+  "landing.problemTitle": "Problem koji rešavamo",
+  "landing.problem1":
+    "Naučna stručnost, dijagnostičke mogućnosti i laboratorijski resursi raspoređeni su po različitim ustanovama, ali informacije o njima mogu biti zastarele, teško dostupne ili ih uopšte nema. SciConnect objedinjuje te informacije na **jednoj platformi za pretragu** i pomaže ljudima da pronađu prave resurse, stručnost i institucionalne veze.",
+  "landing.problem2":
+    "SciConnect **premošćuje jaz u informacijama** između pacijenata, zdravstvenih radnika, istraživača, naučnih ustanova i svih kojima koristi pristup **pouzdanim informacijama o dijagnostičkim uslugama, naučnoj stručnosti i laboratorijskim resursima**.",
+  "landing.missionEyebrow": "Naša svrha",
+  "landing.missionTitle": "Naša misija i vizija",
+  "landing.mission":
+    "**Naša misija** je da poveže pacijente, zdravstvene radnike, istraživače i ustanove sa znanjem, stručnošću i resursima koji su im potrebni.",
+  "landing.vision":
+    "**Naša vizija** je svet u kome informacije slobodno teku, prilike su nadohvat ruke, a svaka veza vodi ka boljoj zdravstvenoj zaštiti i naučnom napretku.",
+  "landing.featuresEyebrow": "Istražite mogućnosti",
+  "landing.featuresTitle": "Šta možete da uradite uz SciConnect?",
+  "landing.featuresIntro":
+    "Od pronalaženja laboratorijske analize do otkrivanja partnera za istraživanje, SciConnect pretvara rasute informacije u praktične prilike.",
+  "landing.feature1Title": "Pronađite dijagnostičke usluge",
+  "landing.feature1Text":
+    "Pretražite laboratorijske analize, pogledajte koje ih ustanove nude i saznajte koju opremu i tehnologije koriste.",
+  "landing.feature2Title": "Povežite se sa stručnjacima",
+  "landing.feature2Text":
+    "Pronađite istraživače i specijaliste iz svoje oblasti, upoznajte njihovu stručnost i pronađite potencijalne saradnike.",
+  "landing.feature3Title": "Otkrijte istraživačke resurse",
+  "landing.feature3Text":
+    "Istražite mogućnosti ustanova i naučne instrumente kako biste pronašli prilike za deljenje resursa i saradnju.",
   "landing.tryTitle": "Isprobajte",
   "landing.guestTitle": "Pregledajte kao gost",
   "landing.guestText":
@@ -544,6 +619,8 @@ const sr: Record<MessageKey, string> = {
     "Imate pitanje, želite da vaša ustanova bude u katalogu ili da postanete partner ili sponzor? Pišite nam.",
   "contact.email": "E-pošta",
   "contact.write": "Pošaljite mejl",
+  "footer.tagline": "© {year} SciConnect. Povezujemo nauku i prilike.",
+  "footer.contact": "Kontakt:",
 
   // --- Workspace ----------------------------------------------------------
   "workspace.admin": "Administrator",
@@ -575,18 +652,19 @@ const sr: Record<MessageKey, string> = {
 
   // --- Capability search --------------------------------------------------
   "search.institution": "Ustanova",
+  "search.city": "Grad",
   "search.instrument": "Instrument",
   "search.analysis": "Analiza",
   "search.organism": "Ciljni organizam",
   "search.researcher": "Istraživač",
   "search.submit": "Pretraži mogućnosti",
   "search.clear": "Poništi",
-  "search.results": "Ustanove koje odgovaraju",
+  "search.results": "Pronađene ustanove",
   "search.searching": "Pretraga…",
   "search.count": "Rezultata: {count}",
   "search.none": "Nijedna ustanova ne ispunjava izabranu kombinaciju.",
   "search.hint":
-    "Svaki filter nudi samo vrednosti koje se i dalje slažu sa ostalim izborima. Izaberite bilo koji naziv ispod da biste otvorili detalje.",
+    "Svaki filter nudi samo vrednosti koje se i dalje slažu sa ostalim izborima. Kliknite na bilo koji naziv da biste otvorili detalje.",
   "search.matchedInstruments": "Instrumenti koji odgovaraju",
   "search.researchers": "Istraživači",
   "search.uses": "Koristi",
@@ -596,7 +674,25 @@ const sr: Record<MessageKey, string> = {
   "search.showMore": "Prikaži još ({shown} od {total})",
   "search.noneAvailable": "Nema dostupnih",
   "search.viewDetails": "Prikaži detalje",
+  "search.applied": "Filtrirano po",
+  "search.removeFilter": "Ukloni filter: {name}",
+  "search.matchesSearch": "Odgovara pretrazi",
+  "search.openInstitution": "Detalji i kontakt",
+  "search.analyses": "Analize",
+  "search.instruments": "Instrumenti",
+  "search.showAll": "Prikaži sve",
+  "search.showLess": "Prikaži manje",
+  "search.n.analysis.one": "{count} analiza",
+  "search.n.analysis.few": "{count} analize",
+  "search.n.analysis.many": "{count} analiza",
+  "search.n.instrument.one": "{count} instrument",
+  "search.n.instrument.few": "{count} instrumenta",
+  "search.n.instrument.many": "{count} instrumenata",
+  "search.n.researcher.one": "{count} istraživač",
+  "search.n.researcher.few": "{count} istraživača",
+  "search.n.researcher.many": "{count} istraživača",
   "search.placeholder.institution": "Unesite ustanovu",
+  "search.placeholder.city": "Unesite grad",
   "search.placeholder.instrument": "Unesite instrument",
   "search.placeholder.analysis": "Unesite analizu",
   "search.placeholder.organism": "Unesite ciljni organizam",
@@ -616,6 +712,10 @@ const sr: Record<MessageKey, string> = {
   "nearby.different": "Koristi drugu lokaciju",
   "nearby.forget": "Zaboravi moju lokaciju",
   "nearby.mapLabel": "Mapa ustanova u vašoj blizini",
+  "nearby.legendMatch": "Odgovara pretrazi ({count})",
+  "nearby.legendOther": "Ostale ustanove",
+  "nearby.onlyMatches": "Prikaži samo pronađene",
+  "nearby.matchTag": "Odgovara pretrazi",
   "nearby.mapOf": "Mapa: {place}",
   "nearby.deviceLabel": "Lokacija vašeg uređaja",
   "nearby.metres": "{value} m daleko",

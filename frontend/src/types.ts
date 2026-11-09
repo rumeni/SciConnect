@@ -104,6 +104,8 @@ export type SearchResponse = {
   total: number;
   limit: number;
   offset: number;
+  /** Every matching institution, beyond this page; used to mark them on the map. */
+  institution_ids: number[];
 };
 
 /** What a removal actually removed. */
@@ -165,6 +167,7 @@ export type FilterOptions = {
   analysis_types: FilterOption[];
   microorganisms: FilterOption[];
   researchers: FilterOption[];
+  cities: string[];
 };
 
 export type Catalogs = {

@@ -18,7 +18,7 @@ def _options(client: TestClient, **params: object) -> dict[str, list[str]]:
     response = client.get("/api/v1/capabilities/filter-options", params=params)
     assert response.status_code == 200, response.text
     return {
-        category: [option["label"] for option in options]
+        category: [option if isinstance(option, str) else option["label"] for option in options]
         for category, options in response.json().items()
     }
 
@@ -197,3 +197,36 @@ def test_combining_two_selections_narrows_further(seeded: TestClient) -> None:
         "Faculty of Veterinary Medicine Core Facility",
         "Institute of Molecular Genetics",
     ]
+
+
+def test_cities_are_offered_once_each_and_narrow_with_the_other_choices(
+    seeded: TestClient,
+) -> None:
+    every = _options(seeded)["cities"]
+    assert every == sorted({spec["city"] for spec in INSTITUTIONS}, key=str.casefold)
+
+    organism_id = _id_of(
+        seeded, "/catalog/microorganisms", "scientific_name", "Escherichia coli"
+    )
+    narrowed = _options(seeded, microorganism_ids=organism_id)["cities"]
+    assert narrowed == ["Belgrade", "Nis", "Novi Sad", "Subotica"]
+
+    # The chosen city does not narrow its own list, so it can be swapped.
+    assert _options(seeded, city="Belgrade")["cities"] == every
+
+
+def test_search_lists_every_matching_institution_beyond_the_page(
+    seeded: TestClient,
+) -> None:
+    response = seeded.get("/api/v1/capabilities/search", params={"limit": 2})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert len(body["items"]) == 2
+    assert len(body["institution_ids"]) == body["total"] == len(INSTITUTIONS)
+
+    in_belgrade = seeded.get(
+        "/api/v1/capabilities/search", params={"city": "Belgrade"}
+    ).json()
+    belgrade_count = sum(1 for spec in INSTITUTIONS if spec["city"] == "Belgrade")
+    assert in_belgrade["total"] == len(in_belgrade["institution_ids"]) == belgrade_count
+    assert {item["institution"]["city"] for item in in_belgrade["items"]} == {"Belgrade"}

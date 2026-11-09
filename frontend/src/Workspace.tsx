@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, loadCatalogs } from "./api";
 import { useT } from "./i18n";
 import { LanguageSwitch } from "./LanguageSwitch";
@@ -32,6 +32,7 @@ const noOptions: FilterOptions = {
   analysis_types: [],
   microorganisms: [],
   researchers: [],
+  cities: [],
 };
 
 const emptyCatalogs: Catalogs = {
@@ -69,6 +70,9 @@ export function Workspace({
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [options, setOptions] = useState<FilterOptions>(noOptions);
   const [results, setResults] = useState<SearchResponse | null>(null);
+  // The filters the shown results were found with, which can differ from the
+  // fields while a visitor is still choosing.
+  const [applied, setApplied] = useState<Filters>(emptyFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // Opening a related record pushes onto the stack, so "Back" returns to the
@@ -95,6 +99,7 @@ export function Workspace({
     try {
       const answer = await api.search(nextFilters, offset);
       if (ticket !== latestSearch.current) return;
+      if (!offset) setApplied(nextFilters);
       // A later page extends the list; a new search replaces it.
       setResults((shown) =>
         offset && shown
@@ -126,6 +131,7 @@ export function Workspace({
     };
   }, [
     filters.institution_ids,
+    filters.city,
     filters.instrument_type_ids,
     filters.analysis_type_ids,
     filters.microorganism_ids,
@@ -156,6 +162,39 @@ export function Workspace({
   const updateFilter = (name: keyof Filters, value: string) => {
     setFilters((current) => ({ ...current, [name]: value }));
   };
+
+  const removeFilter = (name: keyof Filters) => {
+    const next = { ...filters, [name]: "" };
+    setFilters(next);
+    void runSearch(next);
+  };
+
+  /** The catalog name behind a filter value, for the chips above the results. */
+  const filterLabel = (name: keyof Filters, id: number): string => {
+    const named = (items: { id: number; name: string }[]) =>
+      items.find((item) => item.id === id)?.name;
+    const found =
+      name === "institution_ids"
+        ? named(catalogs.institutions)
+        : name === "instrument_type_ids"
+          ? named(catalogs.instrumentTypes)
+          : name === "analysis_type_ids"
+            ? named(catalogs.analysisTypes)
+            : name === "microorganism_ids"
+              ? catalogs.microorganisms.find((item) => item.id === id)?.scientific_name
+              : catalogs.researchers.find((item) => item.id === id)?.full_name;
+    return found ?? `#${id}`;
+  };
+
+  // The institutions the last filtered search found, for marking on the map.
+  // Without any filter every institution "matches", so nothing is marked.
+  const matching = useMemo(
+    () =>
+      results && Object.values(applied).some(Boolean)
+        ? new Set(results.institution_ids ?? [])
+        : null,
+    [results, applied],
+  );
 
   const clear = () => {
     setFilters(emptyFilters);
@@ -273,6 +312,9 @@ export function Workspace({
           onSearch={() => void runSearch(filters)}
           onLoadMore={() => void runSearch(filters, results?.items.length ?? 0)}
           onClear={clear}
+          applied={applied}
+          onRemoveFilter={removeFilter}
+          filterLabel={filterLabel}
           onOpen={openDetail}
           results={results}
           loading={loading}
@@ -282,6 +324,7 @@ export function Workspace({
         <NearbyView
           location={location}
           institutions={mapPoints}
+          matching={matching}
           onOpen={openDetail}
           onAsk={() => setAskingLocation(true)}
           onForget={forget}

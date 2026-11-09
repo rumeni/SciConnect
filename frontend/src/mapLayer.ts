@@ -10,17 +10,29 @@ export function addBaseLayer(map: L.Map): void {
 }
 
 /**
+ * How an institution is drawn: `plain` when nothing is being searched for,
+ * `match` when it answers the current search, `other` when it does not.
+ * Non-matches are faded grey rather than red, so they read as "not this time"
+ * and not as an error, and the matches stand out.
+ */
+export type MarkerTone = "plain" | "match" | "other";
+
+const MARKER_STYLE: Record<MarkerTone, L.CircleMarkerOptions> = {
+  plain: { radius: 9, color: "#08775b", weight: 3, fillColor: "#08775b", fillOpacity: 0.35 },
+  match: { radius: 10, color: "#08775b", weight: 3, fillColor: "#16a37b", fillOpacity: 0.7 },
+  other: { radius: 6, color: "#8a96a5", weight: 2, fillColor: "#8a96a5", fillOpacity: 0.25 },
+};
+
+/**
  * Circle markers rather than Leaflet's default pin: the default icon is loaded
  * from image files whose bundled paths break under Vite.
  */
-export function institutionMarker(latitude: number, longitude: number): L.CircleMarker {
-  return L.circleMarker([latitude, longitude], {
-    radius: 9,
-    color: "#08775b",
-    weight: 3,
-    fillColor: "#08775b",
-    fillOpacity: 0.35,
-  });
+export function institutionMarker(
+  latitude: number,
+  longitude: number,
+  tone: MarkerTone = "plain",
+): L.CircleMarker {
+  return L.circleMarker([latitude, longitude], MARKER_STYLE[tone]);
 }
 
 export function viewerMarker(latitude: number, longitude: number): L.CircleMarker {

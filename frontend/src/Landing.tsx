@@ -59,6 +59,31 @@ export function Landing({
         </div>
       </header>
 
+      <nav className="landing-nav" aria-label={t("landing.nav")}>
+        {SECTIONS.map((section) => (
+          <a
+            key={section.id}
+            href={`#${section.id}`}
+            onClick={(event) => {
+              event.preventDefault();
+              jumpTo(document.getElementById(section.id));
+            }}
+          >
+            {t(section.label)}
+          </a>
+        ))}
+        <a
+          className="landing-nav-enter"
+          href="#try"
+          onClick={(event) => {
+            event.preventDefault();
+            onGuest();
+          }}
+        >
+          {t("landing.nav.enter")}
+        </a>
+      </nav>
+
       <section className="landing-hero">
         <div className="landing-intro">
           <h1 className="landing-title">{t("landing.title")}</h1>
@@ -66,11 +91,7 @@ export function Landing({
           <button
             type="button"
             className="primary landing-cta"
-            onClick={() => {
-              const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-              tryIt.current?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
-              tryIt.current?.focus({ preventScroll: true });
-            }}
+            onClick={() => jumpTo(tryIt.current)}
           >
             {t("landing.cta")}
           </button>
@@ -79,11 +100,45 @@ export function Landing({
         <CapabilityGraph />
       </section>
 
-      <section className="landing-why">
-        <h2>{t("landing.whyTitle")}</h2>
-        <div className="landing-why-text">
-          <p>{t("landing.why1")}</p>
-          <p>{t("landing.why2")}</p>
+      <section className="landing-about" id="problem" tabIndex={-1}>
+        <article>
+          <p className="eyebrow">{t("landing.problemEyebrow")}</p>
+          <h2>{t("landing.problemTitle")}</h2>
+          <p>
+            <Rich text={t("landing.problem1")} />
+          </p>
+          <p>
+            <Rich text={t("landing.problem2")} />
+          </p>
+        </article>
+        <article id="mission" tabIndex={-1}>
+          <p className="eyebrow">{t("landing.missionEyebrow")}</p>
+          <h2>{t("landing.missionTitle")}</h2>
+          <p>
+            <Rich text={t("landing.mission")} />
+          </p>
+          <p>
+            <Rich text={t("landing.vision")} />
+          </p>
+        </article>
+      </section>
+
+      <section className="landing-features" id="features" tabIndex={-1}>
+        <div className="section-intro">
+          <p className="eyebrow">{t("landing.featuresEyebrow")}</p>
+          <h2>{t("landing.featuresTitle")}</h2>
+          <p>{t("landing.featuresIntro")}</p>
+        </div>
+        <div className="feature-cards">
+          {FEATURES.map((feature) => (
+            <article className="feature-card" key={feature.title}>
+              <div className="feature-symbol" aria-hidden="true">
+                {feature.symbol}
+              </div>
+              <h3>{t(feature.title)}</h3>
+              <p>{t(feature.text)}</p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -107,6 +162,37 @@ export function Landing({
         </div>
       </section>
     </main>
+  );
+}
+
+/** Scrolls a section into view and moves keyboard focus there with it. */
+function jumpTo(target: HTMLElement | null) {
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  target?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  target?.focus({ preventScroll: true });
+}
+
+/** In-page links in the bar under the header. */
+const SECTIONS: { id: string; label: MessageKey }[] = [
+  { id: "problem", label: "landing.nav.problem" },
+  { id: "features", label: "landing.nav.features" },
+  { id: "mission", label: "landing.nav.mission" },
+];
+
+const FEATURES: { symbol: string; title: MessageKey; text: MessageKey }[] = [
+  { symbol: "🧬", title: "landing.feature1Title", text: "landing.feature1Text" },
+  { symbol: "👥", title: "landing.feature2Title", text: "landing.feature2Text" },
+  { symbol: "🔗", title: "landing.feature3Title", text: "landing.feature3Text" },
+];
+
+/** A translated sentence whose **starred** parts are set in bold. */
+function Rich({ text }: { text: string }) {
+  return (
+    <>
+      {text.split("**").map((part, index) =>
+        index % 2 === 1 ? <strong key={index}>{part}</strong> : part,
+      )}
+    </>
   );
 }
 
