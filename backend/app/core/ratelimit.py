@@ -47,6 +47,7 @@ PERIOD_SECONDS = {
 EXEMPT_PATHS = frozenset({"/api/v1/health", "/api/v1/health/database"})
 
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+READ_METHODS = frozenset({"GET", "HEAD"})
 
 # Where a browser asks whether its admin key is right. Counted on its own, so
 # guessing at the key cannot borrow the more generous write budget.
@@ -197,7 +198,12 @@ class RateLimitMiddleware:
         path = request.url.path.rstrip("/") or "/"
 
         if path in EXEMPT_PATHS:
-            return None
+            if request.method in READ_METHODS:
+                return None
+            # Monitors only read. Any other method still meets the admin-key
+            # check before routing, so a wrong key answers 401 and a right one
+            # 405: that is a key check and spends the key-check budget.
+            return "auth", parse_limit(config.rate_limit_auth)
         # A browser preflight is not a second request from the page; refusing it
         # would surface as an opaque CORS failure rather than a 429.
         if request.method == "OPTIONS":

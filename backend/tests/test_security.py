@@ -179,6 +179,15 @@ class TestProductionConfiguration:
         with pytest.raises(ValueError, match=expected_message):
             Settings(**{**self.SAFE, field: value})
 
+    def test_app_env_is_read_from_the_variable_compose_sets(self, monkeypatch) -> None:
+        """compose.prod.yaml sets APP_ENV; the APP_ prefix must not turn that
+        into APP_APP_ENV and quietly skip every check above."""
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.setenv("APP_ADMIN_TOKEN", "")
+
+        with pytest.raises(ValueError, match="APP_ADMIN_TOKEN is not set"):
+            Settings(_env_file=None)
+
     def test_the_same_values_are_fine_in_development(self) -> None:
         """None of this is a hole on a laptop, and refusing it there would only
         make the checks something people switch off."""
@@ -234,6 +243,23 @@ class TestCheckingAnAdminKey:
 
         assert codes == [401, 401, 401]
         assert blocked.status_code == 429
+
+    @pytest.mark.parametrize("path", ["/api/v1/health", "/api/v1/health/database"])
+    def test_the_health_check_is_not_a_way_around_the_guess_budget(
+        self, client: TestClient, admin_token: str, limited, path: str
+    ) -> None:
+        """A POST to an unmetered path still meets the key check (401 wrong,
+        405 right), so it has to spend the same budget as /auth/check."""
+        limited(rate_limit_auth="2/minute", rate_limit_read="1/minute")
+
+        codes = [
+            client.post(path, headers={ADMIN_TOKEN_HEADER: f"guess-{n}"}).status_code
+            for n in range(3)
+        ]
+
+        assert codes == [401, 401, 429]
+        # Monitors reading the endpoint are still never limited.
+        assert all(client.get("/api/v1/health").status_code == 200 for _ in range(3))
 
     def test_the_guess_budget_is_separate_from_the_write_budget(
         self, client: TestClient, admin_token: str, limited

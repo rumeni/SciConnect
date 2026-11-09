@@ -106,12 +106,14 @@ function asQuery(filters: Record<string, string>): URLSearchParams {
 /**
  * The header that proves this browser may change the catalog.
  *
- * Only writes carry it. Reading the catalog is public, and sending the secret
- * on every read would spend it on requests that do not need it.
+ * Writes carry it, and so do detail views, which show draft and archived
+ * records only to an admin. Other reads are public and go without it.
+ *
+ * Sent as `Authorization: Bearer` rather than a custom header: the proxy's
+ * access log redacts `Authorization` by default, so the key never lands in it.
  */
-function adminHeaders(): Record<string, string> {
-  const key = adminKey();
-  return key ? { "X-Admin-Token": key } : {};
+function adminHeaders(key: string | null = adminKey()): Record<string, string> {
+  return key ? { Authorization: `Bearer ${key}` } : {};
 }
 
 function remove<T = unknown>(path: string): Promise<T> {
@@ -134,7 +136,7 @@ export const api = {
   checkAdminKey: async (key: string): Promise<{ keyRequired: boolean }> => {
     const response = await fetch(`${API_URL}/api/v1/auth/check`, {
       method: "POST",
-      headers: { "X-Admin-Token": key.trim() },
+      headers: adminHeaders(key.trim()),
     });
     if (response.status === 401) {
       throw new ApiError(say("api.keyWrong"), 401);
@@ -209,7 +211,9 @@ export const api = {
     request<GeocodeResult>(`/api/v1/geocode?q=${encodeURIComponent(query)}`),
 
   detail: async (ref: EntityRef): Promise<EntityDetail> => {
-    const data = await request<never>(`/api/v1${DETAIL_PATHS[ref.kind]}/${ref.id}`);
+    const data = await request<never>(`/api/v1${DETAIL_PATHS[ref.kind]}/${ref.id}`, {
+      headers: adminHeaders(),
+    });
     return { kind: ref.kind, data } as EntityDetail;
   },
 };

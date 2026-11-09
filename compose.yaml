@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-sciconnect}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sciconnect-dev}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,7 +28,7 @@ services:
       # Address lookup needs outbound internet. Set false to run without it.
       APP_GEOCODING_ENABLED: "${APP_GEOCODING_ENABLED:-true}"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app
     depends_on:
@@ -59,7 +59,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:8000
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules

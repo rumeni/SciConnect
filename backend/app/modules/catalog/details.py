@@ -91,6 +91,22 @@ def _person_ref(
     )
 
 
+# Records a guest cannot open. A draft is unfinished, an archived record was
+# taken down on purpose, and either may still carry a contact address. A record
+# that belongs to such an institution is hidden with it. An admin sees them all.
+HIDDEN_INSTITUTION_STATUSES = frozenset({"draft", "archived"})
+
+
+def _institution_hidden(institution: Institution) -> bool:
+    return institution.status in HIDDEN_INSTITUTION_STATUSES
+
+
+def _hide_from_guest(hidden: bool, guest: bool, label: str, record_id: int) -> None:
+    """Answer exactly as for a record that does not exist, so ids reveal nothing."""
+    if guest and hidden:
+        raise NotFoundError(f"{label} {record_id} does not exist")
+
+
 def _load(db: Session, statement, label: str, record_id: int):
     record = db.scalars(statement).unique().one_or_none()
     if record is None:
@@ -98,7 +114,9 @@ def _load(db: Session, statement, label: str, record_id: int):
     return record
 
 
-def institution_detail(db: Session, institution_id: int) -> InstitutionDetailView:
+def institution_detail(
+    db: Session, institution_id: int, *, guest: bool = False
+) -> InstitutionDetailView:
     institution = _load(
         db,
         select(Institution)
@@ -113,6 +131,7 @@ def institution_detail(db: Session, institution_id: int) -> InstitutionDetailVie
         "Institution",
         institution_id,
     )
+    _hide_from_guest(_institution_hidden(institution), guest, "Institution", institution_id)
     return InstitutionDetailView(
         id=institution.id,
         name=institution.name,
@@ -132,7 +151,9 @@ def institution_detail(db: Session, institution_id: int) -> InstitutionDetailVie
     )
 
 
-def researcher_detail(db: Session, researcher_id: int) -> ResearcherDetailView:
+def researcher_detail(
+    db: Session, researcher_id: int, *, guest: bool = False
+) -> ResearcherDetailView:
     researcher = _load(
         db,
         select(Researcher)
@@ -143,6 +164,12 @@ def researcher_detail(db: Session, researcher_id: int) -> ResearcherDetailView:
             .selectinload(InstitutionAnalysisResearcher.institution_analysis)
             .selectinload(InstitutionAnalysis.analysis_type),
         ),
+        "Researcher",
+        researcher_id,
+    )
+    _hide_from_guest(
+        researcher.status == "archived" or _institution_hidden(researcher.institution),
+        guest,
         "Researcher",
         researcher_id,
     )
@@ -162,7 +189,9 @@ def researcher_detail(db: Session, researcher_id: int) -> ResearcherDetailView:
     )
 
 
-def instrument_detail(db: Session, instrument_id: int) -> InstrumentDetailView:
+def instrument_detail(
+    db: Session, instrument_id: int, *, guest: bool = False
+) -> InstrumentDetailView:
     instrument = _load(
         db,
         select(InstitutionInstrument)
@@ -174,6 +203,12 @@ def instrument_detail(db: Session, instrument_id: int) -> InstrumentDetailView:
             .selectinload(InstitutionAnalysisInstrument.institution_analysis)
             .selectinload(InstitutionAnalysis.analysis_type),
         ),
+        "Institution instrument",
+        instrument_id,
+    )
+    _hide_from_guest(
+        instrument.status == "archived" or _institution_hidden(instrument.institution),
+        guest,
         "Institution instrument",
         instrument_id,
     )
@@ -193,7 +228,9 @@ def instrument_detail(db: Session, instrument_id: int) -> InstrumentDetailView:
     )
 
 
-def analysis_detail(db: Session, analysis_id: int) -> AnalysisDetailView:
+def analysis_detail(
+    db: Session, analysis_id: int, *, guest: bool = False
+) -> AnalysisDetailView:
     analysis = _load(
         db,
         select(InstitutionAnalysis)
@@ -213,6 +250,9 @@ def analysis_detail(db: Session, analysis_id: int) -> AnalysisDetailView:
         ),
         "Institution analysis",
         analysis_id,
+    )
+    _hide_from_guest(
+        _institution_hidden(analysis.institution), guest, "Institution analysis", analysis_id
     )
     return AnalysisDetailView(
         id=analysis.id,

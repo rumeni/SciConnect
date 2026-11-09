@@ -5,9 +5,10 @@ called something like this", across every kind of record the detail views can
 open. Each kind is matched on its own name only, so an analysis type and the
 offerings named after it stay separate entries instead of duplicating.
 
-Like the detail views, it does not hide archived or unavailable records; the
-note says so instead, because being unable to find a draft you just created
-would be worse than seeing its status.
+For an admin it does not hide draft or archived records; the note says so
+instead, because being unable to find a draft you just created would be worse
+than seeing its status. A guest is not shown the records the detail views
+would refuse them.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 from sqlalchemy import ColumnElement, case, or_, select
 from sqlalchemy.orm import Session
 
+from app.modules.catalog.details import HIDDEN_INSTITUTION_STATUSES
 from app.modules.catalog.models import (
     AnalysisType,
     Institution,
@@ -64,10 +66,18 @@ def _status_note(status: str) -> str | None:
     return None if status in _UNREMARKABLE else status
 
 
-def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchResponse:
+def find_entities(
+    db: Session, term: str, *, limit: int = 20, guest: bool = False
+) -> EntitySearchResponse:
     term = term.strip()
     if not term:
         return EntitySearchResponse(query=term, items=[], truncated=False)
+
+    def shown(*conditions: ColumnElement[bool]) -> list[ColumnElement[bool]]:
+        """The extra conditions that keep hidden records from a guest."""
+        return list(conditions) if guest else []
+
+    institution_shown = Institution.status.not_in(HIDDEN_INSTITUTION_STATUSES)
 
     matches: list[EntityMatch] = []
     # Each kind is capped on its own, so one crowded kind cannot fill the answer.
@@ -86,7 +96,7 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
     for institution in take(
         db.scalars(
             select(Institution)
-            .where(_contains(Institution.name, term))
+            .where(_contains(Institution.name, term), *shown(institution_shown))
             .order_by(_best_first(Institution.name, term), Institution.name)
             .limit(per_kind + 1)
         )
@@ -164,7 +174,10 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
     people = db.execute(
         select(Researcher, Institution.name)
         .join(Institution, Researcher.institution_id == Institution.id)
-        .where(_contains(Researcher.full_name, term))
+        .where(
+            _contains(Researcher.full_name, term),
+            *shown(institution_shown, Researcher.status != "archived"),
+        )
         .order_by(_best_first(Researcher.full_name, term), Researcher.full_name)
         .limit(per_kind + 1)
     )
@@ -187,7 +200,10 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
             InstrumentType,
             InstitutionInstrument.instrument_type_id == InstrumentType.id,
         )
-        .where(_contains(InstitutionInstrument.display_name, term))
+        .where(
+            _contains(InstitutionInstrument.display_name, term),
+            *shown(institution_shown, InstitutionInstrument.status != "archived"),
+        )
         .order_by(
             _best_first(InstitutionInstrument.display_name, term),
             InstitutionInstrument.display_name,
@@ -210,7 +226,9 @@ def find_entities(db: Session, term: str, *, limit: int = 20) -> EntitySearchRes
         select(InstitutionAnalysis, Institution.name, AnalysisType.name)
         .join(Institution, InstitutionAnalysis.institution_id == Institution.id)
         .join(AnalysisType, InstitutionAnalysis.analysis_type_id == AnalysisType.id)
-        .where(_contains(InstitutionAnalysis.public_name, term))
+        .where(
+            _contains(InstitutionAnalysis.public_name, term), *shown(institution_shown)
+        )
         .order_by(
             _best_first(InstitutionAnalysis.public_name, term), InstitutionAnalysis.public_name
         )

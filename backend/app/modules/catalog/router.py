@@ -1,12 +1,13 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import request_is_admin
 from app.modules.catalog import details, lookup, service
 from app.modules.catalog.geocoding import Geocoder, default_geocoder
 from app.modules.catalog.models import (
@@ -61,6 +62,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1")
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def _is_guest(request: Request) -> bool:
+    return not request_is_admin(request)
+
+
+# True for a visitor without the admin key: drafts and archived records are
+# answered as if they did not exist.
+Guest = Annotated[bool, Depends(_is_guest)]
 # Injected so tests, and offline deployments, can swap the address lookup out.
 AddressLookup = Annotated[Geocoder, Depends(default_geocoder)]
 
@@ -147,11 +157,12 @@ def capability_filter_options(db: DbSession, filters: Filters) -> FilterOptions:
 @router.get("/search", response_model=EntitySearchResponse)
 def entity_search(
     db: DbSession,
+    guest: Guest,
     q: Annotated[str, Query(min_length=1, max_length=100)],
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> EntitySearchResponse:
     """Every record whose own name contains `q`, for jumping straight to it."""
-    return lookup.find_entities(db, q, limit=limit)
+    return lookup.find_entities(db, q, limit=limit, guest=guest)
 
 
 @router.get("/map/institutions", response_model=list[InstitutionMapPoint])
@@ -230,8 +241,9 @@ def list_institution_analyses(
 
 # --- Detail views -----------------------------------------------------------
 # Every entity a search result displays can be opened on its own, with the
-# records it is connected to. Unlike public search these do not hide archived
-# records: the status is returned so the caller can show it.
+# records it is connected to. An admin sees drafts and archived records with
+# their status; a guest gets 404 for them, the same answer as for an id that
+# does not exist, so counting through ids reveals nothing.
 
 
 def _detail(work):
@@ -242,25 +254,25 @@ def _detail(work):
 
 
 @router.get("/catalog/institutions/{institution_id}", response_model=InstitutionDetailView)
-def institution_detail(db: DbSession, institution_id: int) -> InstitutionDetailView:
-    return _detail(lambda: details.institution_detail(db, institution_id))
+def institution_detail(db: DbSession, guest: Guest, institution_id: int) -> InstitutionDetailView:
+    return _detail(lambda: details.institution_detail(db, institution_id, guest=guest))
 
 
 @router.get("/catalog/researchers/{researcher_id}", response_model=ResearcherDetailView)
-def researcher_detail(db: DbSession, researcher_id: int) -> ResearcherDetailView:
-    return _detail(lambda: details.researcher_detail(db, researcher_id))
+def researcher_detail(db: DbSession, guest: Guest, researcher_id: int) -> ResearcherDetailView:
+    return _detail(lambda: details.researcher_detail(db, researcher_id, guest=guest))
 
 
 @router.get(
     "/catalog/institution-instruments/{instrument_id}", response_model=InstrumentDetailView
 )
-def instrument_detail(db: DbSession, instrument_id: int) -> InstrumentDetailView:
-    return _detail(lambda: details.instrument_detail(db, instrument_id))
+def instrument_detail(db: DbSession, guest: Guest, instrument_id: int) -> InstrumentDetailView:
+    return _detail(lambda: details.instrument_detail(db, instrument_id, guest=guest))
 
 
 @router.get("/catalog/institution-analyses/{analysis_id}", response_model=AnalysisDetailView)
-def analysis_detail(db: DbSession, analysis_id: int) -> AnalysisDetailView:
-    return _detail(lambda: details.analysis_detail(db, analysis_id))
+def analysis_detail(db: DbSession, guest: Guest, analysis_id: int) -> AnalysisDetailView:
+    return _detail(lambda: details.analysis_detail(db, analysis_id, guest=guest))
 
 
 @router.get(

@@ -11,7 +11,13 @@ PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod", "staging"})
 
 class Settings(BaseSettings):
     app_name: str = "SciConnect API"
-    app_env: str = "development"
+    # Named explicitly: with the APP_ prefix the field alone would be read from
+    # APP_APP_ENV, so the APP_ENV every compose file sets would be ignored and
+    # the production checks below would never run.
+    app_env: str = Field(
+        default="development",
+        validation_alias=AliasChoices("APP_ENV", "APP_APP_ENV"),
+    )
     database_url: str = Field(
         default="postgresql+psycopg://sciconnect:sciconnect-dev@localhost:5432/sciconnect",
         validation_alias=AliasChoices("DATABASE_URL", "APP_DATABASE_URL"),

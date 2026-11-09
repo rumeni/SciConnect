@@ -57,10 +57,19 @@
 		reverse_proxy frontend:8080
 	}
 
+	# Caddy redacts Authorization and Cookie by itself, which is how the page
+	# sends the admin key. X-Admin-Token is still accepted by the API (older
+	# clients, scripts), so it is dropped here rather than written to disk.
 	log {
 		output file /var/log/caddy/access.log {
 			roll_size 10MB
 			roll_keep 5
+		}
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Admin-Token delete
+			}
 		}
 	}
 }

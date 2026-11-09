@@ -56,6 +56,18 @@ def token_is_valid(presented: str | None, expected: str) -> bool:
     return hmac.compare_digest(presented.encode("utf-8"), expected.encode("utf-8"))
 
 
+def request_is_admin(request: Request, config: Settings | None = None) -> bool:
+    """Whether a read should see what only an admin may: drafts, archived records.
+
+    A server with no key configured (development) treats everyone as admin,
+    matching the write gate.
+    """
+    config = config or settings
+    if not config.writes_require_a_token:
+        return True
+    return token_is_valid(presented_token(request), config.admin_token)
+
+
 class AdminTokenMiddleware:
     """Refuses any data-changing request that does not carry the admin token.
 
