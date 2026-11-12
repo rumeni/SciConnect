@@ -1,6 +1,7 @@
 import { type ReactNode, useRef, useState } from "react";
 import { useT, type MessageKey, type Translate } from "./i18n";
 import { LanguageSwitch } from "./LanguageSwitch";
+import { plain, segments } from "./markup";
 import { Brand } from "./Logo";
 
 /**
@@ -189,35 +190,7 @@ const FEATURES: { symbol: string; title: MessageKey; text: MessageKey }[] = [
   { symbol: "📍", title: "landing.feature4Title", text: "landing.feature4Text" },
 ];
 
-/**
- * `**bold**` and `__species name__`, each only as a closed pair and never one
- * inside the other. A lone `**` or `__`, or a single `_` as in snake_case,
- * stays literal text. Species names are Latin and written in italics by
- * convention, so they are marked as such.
- */
-const MARKUP = /\*\*(.+?)\*\*|__(.+?)__/g;
-
-type Segment = { kind: "text" | "bold" | "species"; text: string };
-
-/** Splits a translated sentence into its marked and unmarked runs. */
-function segments(text: string): Segment[] {
-  const found: Segment[] = [];
-  let last = 0;
-  for (const match of text.matchAll(MARKUP)) {
-    const at = match.index ?? 0;
-    found.push({ kind: "text", text: text.slice(last, at) });
-    found.push(
-      match[1] !== undefined
-        ? { kind: "bold", text: match[1] }
-        : { kind: "species", text: match[2] },
-    );
-    last = at + match[0].length;
-  }
-  found.push({ kind: "text", text: text.slice(last) });
-  return found;
-}
-
-/** A translated sentence with its markup rendered; see `MARKUP`. */
+/** A translated sentence with its markup rendered; see markup.ts. */
 function Rich({ text }: { text: string }) {
   return (
     <>
@@ -235,12 +208,6 @@ function Rich({ text }: { text: string }) {
     </>
   );
 }
-
-/** The same sentence as plain text, for labels that cannot hold markup. */
-const plain = (text: string) =>
-  segments(text)
-    .map((part) => part.text)
-    .join("");
 
 type NodeId = "institution" | "instrument" | "analysis" | "researcher" | "microorganism";
 

@@ -5,9 +5,18 @@ import { useT } from "./i18n";
 export function Footer() {
   const t = useT();
 
+  /**
+   * Scrolls up and takes keyboard focus along, so the next Tab starts at the
+   * top of the page instead of continuing from the footer.
+   */
   const toTop = () => {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
+    const page = document.querySelector("main");
+    if (page) {
+      page.tabIndex = -1;
+      page.focus({ preventScroll: true });
+    }
   };
 
   return (

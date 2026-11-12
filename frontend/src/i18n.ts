@@ -8,7 +8,7 @@
  *
  * Start-page texts may carry two marks, each only as a closed pair and not
  * nested:
- * `**bold**` and `__Species name__` (italic). See `Rich` in Landing.tsx.
+ * `**bold**` and `__Species name__` (italic). See markup.ts.
  *
  * The choice is kept per browser and read through `useLang`, which subscribes
  * the component to changes, so switching language re-renders everything at

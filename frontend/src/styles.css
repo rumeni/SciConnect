@@ -64,6 +64,8 @@ button, select, input { font: inherit; }
 a { color: var(--accent-bright); }
 
 main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 52px 0 80px; }
+/* Focused only by "Back to top", to move the keyboard there; no ring round the page. */
+main:focus { outline: none; }
 
 /* --- Brand ---------------------------------------------------------------- */
 /* The logo is a transparent horizontal lockup; see Logo.tsx. */
@@ -1271,13 +1273,15 @@ a.partner-card:hover { border-color: var(--accent-bright); }
   .session-bar.admin > button { grid-column: 1 / -1; }
   .workspace-head { margin-bottom: 22px; }
 
-  /* Section links: three equal buttons that always fit the width; a long
-     label wraps onto a second line rather than running off the screen. */
+  /* Section links: equal buttons that always fit the width, as many per row
+     as fit at 88px or more (three today, even at 320px). A long label wraps
+     onto a second line rather than running off the screen, and a link added
+     later starts a new row instead of squeezing the others. */
   .landing-nav {
     grid-column: 1 / -1;
     grid-row: 3;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
     gap: 8px;
   }
   .landing-nav a {
