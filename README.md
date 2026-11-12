@@ -120,10 +120,10 @@ rate limit, and the API refuses to start in production with an unsafe
 configuration.
 
 The API reads `DATABASE_URL`. Managed hosts inject a driverless URL such as
-`postgresql://user:pass@host/db`, and SQLAlchemy reads a driverless PostgreSQL
-URL as psycopg2, which this project does not install: it uses psycopg 3. The
-scheme is therefore rewritten to `postgresql+psycopg://` on startup, so a
-host-supplied URL works unchanged. The legacy `postgres://` form is handled the
+`postgresql://user:pass@host/db`. SQLAlchemy 2.0 reads that as psycopg2, which
+this project does not install (it uses psycopg 3); 2.1 already picks psycopg.
+The scheme is therefore rewritten to `postgresql+psycopg://` on startup, so a
+host-supplied URL works unchanged whichever version is installed. The legacy `postgres://` form is handled the
 same way, and any URL that already names a driver is left alone.
 
 Two things a host needs beyond the database:

@@ -30,9 +30,11 @@ class Settings(BaseSettings):
         """Name the driver this project actually ships.
 
         Managed hosts inject a driverless URL (`postgresql://…`, or the legacy
-        Heroku-style `postgres://…`). SQLAlchemy reads a driverless PostgreSQL
-        URL as psycopg2, which is not installed here: the project uses psycopg 3.
-        Naming the driver keeps a host-supplied URL working unchanged.
+        Heroku-style `postgres://…`). SQLAlchemy 2.0 reads a driverless
+        PostgreSQL URL as psycopg2, which is not installed here: the project
+        uses psycopg 3. SQLAlchemy 2.1 defaults to psycopg, but the dependency
+        range allows both, and `postgres://` is not understood by either.
+        Naming the driver keeps a host-supplied URL working on any of them.
         """
         for prefix in ("postgresql://", "postgres://"):
             if value.startswith(prefix):
