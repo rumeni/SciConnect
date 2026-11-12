@@ -1207,7 +1207,10 @@ a.partner-card:hover { border-color: var(--accent-bright); }
 .site-footer-end { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
 /* Back to top: transparent, a thin outline, nothing that moves. */
 .to-top {
-  padding: 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px 7px 11px;
   color: #ffffff;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -1217,6 +1220,15 @@ a.partner-card:hover { border-color: var(--accent-bright); }
   cursor: pointer;
 }
 .to-top:hover { border-color: #ffffff; }
+.to-top-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .to-top:focus-visible { outline-color: #ffb38c; }
 .site-footer a { color: #ffffff; font-weight: 650; text-decoration: none; }
 .site-footer a:hover { color: #ff946d; text-decoration: underline; text-underline-offset: 3px; }

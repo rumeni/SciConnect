@@ -29,7 +29,15 @@ export function Footer() {
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
           </span>
           <button type="button" className="to-top" onClick={toTop}>
-            <span aria-hidden="true">↑</span> {t("footer.toTop")}
+            <svg
+              className="to-top-icon"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M3.5 10 8 5.5 12.5 10" />
+            </svg>
+            {t("footer.toTop")}
           </button>
         </div>
       </div>
