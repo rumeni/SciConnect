@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { useT, type MessageKey, type Translate } from "./i18n";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./Logo";
@@ -102,7 +102,7 @@ export function Landing({
       </section>
 
       <section className="landing-about" id="about" tabIndex={-1}>
-        <article id="problem" tabIndex={-1}>
+        <article>
           <p className="eyebrow">{t("landing.problemEyebrow")}</p>
           <h2>{t("landing.problemTitle")}</h2>
           <p>
@@ -112,7 +112,7 @@ export function Landing({
             <Rich text={t("landing.problem2")} />
           </p>
         </article>
-        <article id="mission" tabIndex={-1}>
+        <article>
           <p className="eyebrow">{t("landing.missionEyebrow")}</p>
           <h2>{t("landing.missionTitle")}</h2>
           <p>
@@ -190,25 +190,57 @@ const FEATURES: { symbol: string; title: MessageKey; text: MessageKey }[] = [
 ];
 
 /**
- * A translated sentence whose **starred** parts are set in bold and whose
- * _underscored_ parts in italics — the latter for species names, which are
- * written in italics by convention.
+ * `**bold**` and `__species name__`, each only as a closed pair and never one
+ * inside the other. A lone `**` or `__`, or a single `_` as in snake_case,
+ * stays literal text. Species names are Latin and written in italics by
+ * convention, so they are marked as such.
  */
+const MARKUP = /\*\*(.+?)\*\*|__(.+?)__/g;
+
+type Segment = { kind: "text" | "bold" | "species"; text: string };
+
+/** Splits a translated sentence into its marked and unmarked runs. */
+function segments(text: string): Segment[] {
+  const found: Segment[] = [];
+  let last = 0;
+  for (const match of text.matchAll(MARKUP)) {
+    const at = match.index ?? 0;
+    found.push({ kind: "text", text: text.slice(last, at) });
+    found.push(
+      match[1] !== undefined
+        ? { kind: "bold", text: match[1] }
+        : { kind: "species", text: match[2] },
+    );
+    last = at + match[0].length;
+  }
+  found.push({ kind: "text", text: text.slice(last) });
+  return found;
+}
+
+/** A translated sentence with its markup rendered; see `MARKUP`. */
 function Rich({ text }: { text: string }) {
   return (
     <>
-      {text.split("**").map((part, index) => {
-        const inner = part
-          .split("_")
-          .map((piece, at) => (at % 2 === 1 ? <em key={at}>{piece}</em> : piece));
-        return index % 2 === 1 ? <strong key={index}>{inner}</strong> : inner;
-      })}
+      {segments(text).map((part, index): ReactNode =>
+        part.kind === "bold" ? (
+          <strong key={index}>{part.text}</strong>
+        ) : part.kind === "species" ? (
+          <em key={index} lang="la">
+            {part.text}
+          </em>
+        ) : (
+          part.text
+        ),
+      )}
     </>
   );
 }
 
 /** The same sentence as plain text, for labels that cannot hold markup. */
-const plain = (text: string) => text.replace(/\*\*|_/g, "");
+const plain = (text: string) =>
+  segments(text)
+    .map((part) => part.text)
+    .join("");
 
 type NodeId = "institution" | "instrument" | "analysis" | "researcher" | "microorganism";
 

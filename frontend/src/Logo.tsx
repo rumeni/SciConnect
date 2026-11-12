@@ -16,7 +16,7 @@ export function BrandMark({ className = "brand-mark" }: { className?: string }) 
   return (
     <img
       className={className}
-      src="/brand/sciconnect-mark.png"
+      src="/brand/sciconnect-mark.png?v=2"
       alt="SciConnect"
       width={256}
       height={256}
@@ -45,13 +45,17 @@ export function Brand({ onHome }: { onHome: () => void }) {
         onHome();
       }}
     >
-      <img
-        className="brand-logo"
-        src="/brand/sciconnect-logo.png"
-        alt={t("brand.alt")}
-        width={800}
-        height={203}
-      />
+      {/* WebP is half the size; the PNG is there for browsers without it. */}
+      <picture>
+        <source srcSet="/brand/sciconnect-logo.webp?v=2" type="image/webp" />
+        <img
+          className="brand-logo"
+          src="/brand/sciconnect-logo.png?v=2"
+          alt={t("brand.alt")}
+          width={800}
+          height={203}
+        />
+      </picture>
     </a>
   );
 }

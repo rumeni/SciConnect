@@ -68,6 +68,7 @@ main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 52px 0 80
 /* --- Brand ---------------------------------------------------------------- */
 /* The logo is a transparent horizontal lockup; see Logo.tsx. */
 .brand { display: flex; flex: none; align-items: center; gap: 20px; margin-bottom: 34px; }
+.brand picture { display: block; flex: none; }
 .brand-link { border-radius: 12px; text-decoration: none; }
 .brand-link:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 6px; }
 .brand-logo {
@@ -617,7 +618,20 @@ h3 .title-button { font-size: 1.55rem; font-weight: 400; }
 }
 .landing-head .brand { margin-bottom: 0; margin-right: auto; }
 /* The language switch and the partners link travel together on the right. */
-.head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+/* Too narrow for one row: logo and actions stay on top, the section links
+   take the full second row, right-aligned under the actions. The actions are
+   pushed right even if they wrap onto a line of their own. */
+@media (max-width: 1199px) {
+  .landing-head .landing-nav { order: 3; flex-basis: 100%; }
+  .landing-head .head-actions { margin-left: auto; }
+}
 .partners-link,
 .contact-link {
   display: inline-flex;
@@ -957,7 +971,6 @@ a.partner-card:hover { border-color: var(--accent-bright); }
 
 .landing-about,
 .landing-features { scroll-margin-top: 24px; }
-.landing-about article:focus,
 .landing-about:focus,
 .landing-features:focus { outline: none; }
 .landing-about {
@@ -995,6 +1008,9 @@ a.partner-card:hover { border-color: var(--accent-bright); }
 .feature-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
 @media (max-width: 1100px) {
   .feature-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .feature-cards { grid-template-columns: minmax(0, 1fr); }
 }
 .feature-card {
   padding: 32px 30px;

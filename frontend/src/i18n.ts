@@ -6,6 +6,10 @@
  * on the page. Record data — institution names, instrument models, the strings
  * the API returns — is not translated: it is whatever was entered.
  *
+ * Start-page texts may carry two marks, each only as a closed pair and not
+ * nested:
+ * `**bold**` and `__Species name__` (italic). See `Rich` in Landing.tsx.
+ *
  * The choice is kept per browser and read through `useLang`, which subscribes
  * the component to changes, so switching language re-renders everything at
  * once without a reload.
@@ -110,7 +114,7 @@ const en = {
   "graph.questions": "Example questions",
   "graph.q1": "Which institutions have a Real-Time PCR System?",
   "graph.q1.why": "Only instruments an institution actually owns count.",
-  "graph.q2": "Who offers Whole Genome Sequencing for _Listeria monocytogenes_?",
+  "graph.q2": "Who offers Whole Genome Sequencing for __Listeria monocytogenes__?",
   "graph.q2.why": "The analysis has to be stated to target that organism.",
   "graph.q3": "Who runs this analysis, and on which instrument?",
   "graph.q3.why":
@@ -554,13 +558,13 @@ const sr: Record<MessageKey, string> = {
   "landing.feature3Title": "Otkrijte istraživačke resurse",
   "landing.feature3Text":
     "Istražite mogućnosti i naučnu opremu različitih ustanova i otkrijte prilike za zajedničko korišćenje resursa i uspostavljanje saradnje.",
-  "landing.feature4Title": "Nađite ustanove blizu Vas",
+  "landing.feature4Title": "Pronađite ustanove blizu Vas",
   "landing.feature4Text":
     "Pronađite ustanove koje odgovaraju Vašim potrebama i jednostavno istražite njihove lokacije na interaktivnoj mapi.",
   "landing.tryTitle": "Isprobajte",
   "landing.guestTitle": "Pregledajte kao gost",
   "landing.guestText":
-    "Ispitajte mogućnosti koje Vam nudi SciConnect – bez potrebe za logovanjem i šifrom.",
+    "Ispitajte mogućnosti koje Vam nudi SciConnect – bez prijave i lozinke.",
   "landing.guestButton": "Uđite kao gost",
   "landing.adminTitle": "Prijavite se kao administrator",
   "landing.adminText":
@@ -582,7 +586,7 @@ const sr: Record<MessageKey, string> = {
   "graph.questions": "Primeri pitanja",
   "graph.q1": "Koje ustanove imaju Real-Time PCR sistem?",
   "graph.q1.why": "Računaju se samo instrumenti koje ustanova zaista poseduje.",
-  "graph.q2": "Ko nudi uslugu sekvenciranja celog genoma za _Listeria monocytogenes_?",
+  "graph.q2": "Ko nudi uslugu sekvenciranja celog genoma za __Listeria monocytogenes__?",
   "graph.q2.why": "Za analizu mora biti navedeno da cilja taj organizam.",
   "graph.q3": "Ko izvodi ovu analizu i na kom instrumentu?",
   "graph.q3.why":
