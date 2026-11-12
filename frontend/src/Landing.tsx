@@ -34,6 +34,32 @@ export function Landing({
             window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
           }}
         />
+        {/* The section links share the logo's row, so the whole header reads
+            as one line: logo, page sections, then language and contact. */}
+        <nav className="landing-nav" aria-label={t("landing.nav")}>
+          {SECTIONS.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              onClick={(event) => {
+                event.preventDefault();
+                jumpTo(document.getElementById(section.id));
+              }}
+            >
+              {t(section.label)}
+            </a>
+          ))}
+          <a
+            className="landing-nav-enter"
+            href="#try"
+            onClick={(event) => {
+              event.preventDefault();
+              onGuest();
+            }}
+          >
+            {t("landing.nav.enter")}
+          </a>
+        </nav>
         <div className="head-actions">
           <LanguageSwitch />
           <a
@@ -59,31 +85,6 @@ export function Landing({
         </div>
       </header>
 
-      <nav className="landing-nav" aria-label={t("landing.nav")}>
-        {SECTIONS.map((section) => (
-          <a
-            key={section.id}
-            href={`#${section.id}`}
-            onClick={(event) => {
-              event.preventDefault();
-              jumpTo(document.getElementById(section.id));
-            }}
-          >
-            {t(section.label)}
-          </a>
-        ))}
-        <a
-          className="landing-nav-enter"
-          href="#try"
-          onClick={(event) => {
-            event.preventDefault();
-            onGuest();
-          }}
-        >
-          {t("landing.nav.enter")}
-        </a>
-      </nav>
-
       <section className="landing-hero">
         <div className="landing-intro">
           <h1 className="landing-title">{t("landing.title")}</h1>
@@ -100,8 +101,8 @@ export function Landing({
         <CapabilityGraph />
       </section>
 
-      <section className="landing-about" id="problem" tabIndex={-1}>
-        <article>
+      <section className="landing-about" id="about" tabIndex={-1}>
+        <article id="problem" tabIndex={-1}>
           <p className="eyebrow">{t("landing.problemEyebrow")}</p>
           <h2>{t("landing.problemTitle")}</h2>
           <p>
@@ -172,10 +173,12 @@ function jumpTo(target: HTMLElement | null) {
   target?.focus({ preventScroll: true });
 }
 
-/** In-page links in the bar under the header. */
+/**
+ * In-page links in the header. "About us" covers both the problem and the
+ * mission, which sit side by side in one section.
+ */
 const SECTIONS: { id: string; label: MessageKey }[] = [
-  { id: "problem", label: "landing.nav.problem" },
-  { id: "mission", label: "landing.nav.mission" },
+  { id: "about", label: "landing.nav.about" },
   { id: "features", label: "landing.nav.features" },
 ];
 
@@ -183,18 +186,29 @@ const FEATURES: { symbol: string; title: MessageKey; text: MessageKey }[] = [
   { symbol: "🧬", title: "landing.feature1Title", text: "landing.feature1Text" },
   { symbol: "👥", title: "landing.feature2Title", text: "landing.feature2Text" },
   { symbol: "🔗", title: "landing.feature3Title", text: "landing.feature3Text" },
+  { symbol: "📍", title: "landing.feature4Title", text: "landing.feature4Text" },
 ];
 
-/** A translated sentence whose **starred** parts are set in bold. */
+/**
+ * A translated sentence whose **starred** parts are set in bold and whose
+ * _underscored_ parts in italics — the latter for species names, which are
+ * written in italics by convention.
+ */
 function Rich({ text }: { text: string }) {
   return (
     <>
-      {text.split("**").map((part, index) =>
-        index % 2 === 1 ? <strong key={index}>{part}</strong> : part,
-      )}
+      {text.split("**").map((part, index) => {
+        const inner = part
+          .split("_")
+          .map((piece, at) => (at % 2 === 1 ? <em key={at}>{piece}</em> : piece));
+        return index % 2 === 1 ? <strong key={index}>{inner}</strong> : inner;
+      })}
     </>
   );
 }
+
+/** The same sentence as plain text, for labels that cannot hold markup. */
+const plain = (text: string) => text.replace(/\*\*|_/g, "");
 
 type NodeId = "institution" | "instrument" | "analysis" | "researcher" | "microorganism";
 
@@ -259,7 +273,7 @@ function CapabilityGraph() {
       <svg
         viewBox="0 0 544 340"
         role="img"
-        aria-label={`${t(question.text)} ${t("graph.linksInvolved")}: ${question.edges
+        aria-label={`${plain(t(question.text))} ${t("graph.linksInvolved")}: ${question.edges
           .map((id) => edgeSentence(t, id))
           .join(", ")}.`}
       >
@@ -303,7 +317,7 @@ function CapabilityGraph() {
                 className={index === chosen ? "graph-question chosen" : "graph-question"}
                 onClick={() => setChosen(index)}
               >
-                {t(item.text)}
+                <Rich text={t(item.text)} />
               </button>
             </li>
           ))}

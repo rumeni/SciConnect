@@ -51,42 +51,43 @@ const en = {
   "landing.contact": "Contact us",
   "landing.title": "Find the lab that can run your analysis.",
   "landing.lede":
-    "SciConnect records which institutions own which instruments, which analyses they offer on them, who performs those analyses, and which microorganisms they target. Ask for the exact combination your work needs and get the places that have all of it.",
+    "SciConnect brings together information about institutions, the instruments they have, the analyses they perform, the microorganisms those analyses target, and the experts they employ. Search the platform by the specific needs of your clinical or research work and quickly find the institutions that meet all of your criteria.",
   "landing.cta": "Try it",
   "landing.nav": "Page sections",
-  "landing.nav.problem": "The Problem We're Solving",
-  "landing.nav.features": "What You Can Do",
-  "landing.nav.mission": "Mission & Vision",
+  "landing.nav.about": "About Us",
+  "landing.nav.features": "Discover SciConnect",
   "landing.nav.enter": "Enter App ↗",
   "landing.problemEyebrow": "Why SciConnect matters",
   "landing.problemTitle": "The Problem We're Solving",
   "landing.problem1":
-    "Scientific expertise, diagnostic capabilities, and laboratory resources are distributed across institutions, but information about them can be outdated, difficult to access, or even missing. SciConnect brings this information together in **one searchable platform**, helping people find the right resources, expertise, and institutional connections.",
+    "Information about the scientific expertise, diagnostic capabilities and laboratory resources of different institutions is often outdated, hard to access or incomplete. SciConnect brings this information together in **one searchable platform**, allowing users to easily find the right resources, experts and institutions.",
   "landing.problem2":
-    "SciConnect **bridges the information gap** between patients, healthcare professionals, researchers, scientific institutions, and everyone who can benefit from access to **reliable information on diagnostic services, scientific expertise, and laboratory resources**.",
+    "SciConnect **bridges the gap in access to information** and connects patients, healthcare professionals, researchers, scientific institutions and everyone who needs **reliable information on diagnostic services, scientific expertise and laboratory resources**. All in one place.",
   "landing.missionEyebrow": "Our purpose",
   "landing.missionTitle": "Our Mission & Vision",
   "landing.mission":
-    "**Our mission** is to connect patients, healthcare professionals, researchers, and institutions with the knowledge, expertise, and resources they need.",
+    "**Our mission** is to connect healthcare professionals, researchers, patients and institutions with the knowledge, experts and resources they need.",
   "landing.vision":
-    "**Our vision** is a world where information flows freely, opportunities are within reach, and every connection drives better healthcare and scientific progress.",
+    "**Our vision** is a world where information is easy to access, opportunities for collaboration are within reach, and every new connection contributes to better healthcare and the advancement of science.",
   "landing.featuresEyebrow": "Explore possibilities",
   "landing.featuresTitle": "What Can You Do with SciConnect?",
   "landing.featuresIntro":
     "From finding a laboratory test to discovering a research partner, SciConnect helps turn scattered information into practical opportunities.",
   "landing.feature1Title": "Find diagnostic services",
   "landing.feature1Text":
-    "Search for laboratory analyses, see which institutions offer them, and learn which equipment and technologies they use.",
+    "Search for laboratory analyses, see which institutions offer them, and learn which equipment they use.",
   "landing.feature2Title": "Connect with experts",
   "landing.feature2Text":
-    "Find researchers and specialists in your field, explore their expertise, and identify potential collaborators.",
+    "Find researchers and experts in your field, get to know their expertise, and discover new opportunities for collaboration.",
   "landing.feature3Title": "Discover research resources",
   "landing.feature3Text":
-    "Explore institutional capabilities and scientific instruments to identify opportunities for resource sharing and cooperation.",
+    "Explore the capabilities and scientific equipment of different institutions and discover opportunities for sharing resources and building collaborations.",
+  "landing.feature4Title": "Find institutions near you",
+  "landing.feature4Text":
+    "Find institutions that meet your needs and easily explore their locations on an interactive map.",
   "landing.tryTitle": "Try it",
   "landing.guestTitle": "Browse as a guest",
-  "landing.guestText":
-    "Search capabilities, find institutions near you, and open any record. No key needed.",
+  "landing.guestText": "Explore what SciConnect has to offer – no sign-in or password needed.",
   "landing.guestButton": "Browse as guest",
   "landing.adminTitle": "Sign in as admin",
   "landing.adminText":
@@ -109,12 +110,12 @@ const en = {
   "graph.questions": "Example questions",
   "graph.q1": "Which institutions have a Real-Time PCR System?",
   "graph.q1.why": "Only instruments an institution actually owns count.",
-  "graph.q2": "Who offers Whole Genome Sequencing for Listeria monocytogenes?",
+  "graph.q2": "Who offers Whole Genome Sequencing for _Listeria monocytogenes_?",
   "graph.q2.why": "The analysis has to be stated to target that organism.",
   "graph.q3": "Who runs this analysis, and on which instrument?",
   "graph.q3.why":
     "The instrument and the researcher must belong to the same institution as the analysis.",
-  "graph.q4": "All five at once",
+  "graph.q4": "All at once",
   "graph.q4.why": "Every link has to hold together, inside one institution.",
 
   // --- Sign in -----------------------------------------------------------
@@ -149,7 +150,7 @@ const en = {
     "Have a question, want your institution listed in the catalogue, or would like to become a partner or sponsor? Write to us.",
   "contact.email": "Email",
   "contact.write": "Write an email",
-  "footer.tagline": "© {year} SciConnect. Connecting science and opportunity.",
+  "footer.tagline": "© {year} SciConnect. Connecting knowledge. Creating opportunities.",
   "footer.contact": "Contact:",
 
   // --- Workspace ----------------------------------------------------------
@@ -522,42 +523,44 @@ const sr: Record<MessageKey, string> = {
   "landing.contact": "Kontaktirajte nas",
   "landing.title": "Pronađite laboratoriju koja može da uradi Vašu analizu.",
   "landing.lede":
-    "SciConnect beleži koje ustanove poseduju koje instrumente, koje analize na njima nude, ko te analize izvodi i na koje mikroorganizme su usmerene. Zatražite tačno onu kombinaciju koja Vam treba i dobijte mesta koja imaju sve to.",
+    "SciConnect povezuje informacije o ustanovama, instrumentima kojima raspolažu, analizama koje obavljaju, mikroorganizmima na koje su te analize usmerene i stručnjacima zaposlenim u tim ustanovama. Pretražite platformu prema konkretnim potrebama svog kliničkog ili istraživačkog rada i brzo pronađite ustanove koje ispunjavaju sve Vaše kriterijume.",
   "landing.cta": "Isprobajte",
   "landing.nav": "Delovi stranice",
-  "landing.nav.problem": "Problem koji rešavamo",
-  "landing.nav.features": "Šta možete",
-  "landing.nav.mission": "Misija i vizija",
+  "landing.nav.about": "O nama",
+  "landing.nav.features": "Otkrijte SciConnect",
   "landing.nav.enter": "Uđite u aplikaciju ↗",
   "landing.problemEyebrow": "Zašto je SciConnect važan",
   "landing.problemTitle": "Problem koji rešavamo",
   "landing.problem1":
-    "Naučna stručnost, dijagnostičke mogućnosti i laboratorijski resursi raspoređeni su po različitim ustanovama, ali informacije o njima mogu biti zastarele, teško dostupne ili ih uopšte nema. SciConnect objedinjuje te informacije na **jednoj platformi za pretragu** i pomaže ljudima da pronađu prave resurse, stručnost i institucionalne veze.",
+    "Informacije o naučnoj ekspertizi, dijagnostičkim mogućnostima i laboratorijskim resursima različitih ustanova su često zastarele, teško dostupne ili nepotpune. SciConnect objedinjuje ove informacije na **jedinstvenoj platformi za pretragu**, omogućavajući korisnicima da jednostavno pronađu odgovarajuće resurse, stručnjake i ustanove.",
   "landing.problem2":
-    "SciConnect **premošćuje jaz u informacijama** između pacijenata, zdravstvenih radnika, istraživača, naučnih ustanova i svih kojima koristi pristup **pouzdanim informacijama o dijagnostičkim uslugama, naučnoj stručnosti i laboratorijskim resursima**.",
+    "SciConnect **premošćuje jaz u dostupnosti informacija** i povezuje pacijente, zdravstvene radnike, istraživače, naučne ustanove i sve kojima su potrebne **pouzdane informacije o dijagnostičkim uslugama, naučnoj ekspertizi i laboratorijskim resursima**. Na jednom mestu.",
   "landing.missionEyebrow": "Naša svrha",
   "landing.missionTitle": "Naša misija i vizija",
   "landing.mission":
-    "**Naša misija** je da poveže pacijente, zdravstvene radnike, istraživače i ustanove sa znanjem, stručnošću i resursima koji su im potrebni.",
+    "**Naša misija** je da povežemo zdravstvene radnike, istraživače, pacijente i ustanove sa znanjem, stručnjacima i resursima koji su im potrebni.",
   "landing.vision":
-    "**Naša vizija** je svet u kome informacije slobodno teku, prilike su nadohvat ruke, a svaka veza vodi ka boljoj zdravstvenoj zaštiti i naučnom napretku.",
+    "**Naša vizija** je svet u kojem su informacije lako dostupne, prilike za saradnju nadohvat ruke, a svako novo povezivanje doprinosi kvalitetnijoj zdravstvenoj zaštiti i napretku nauke.",
   "landing.featuresEyebrow": "Istražite mogućnosti",
   "landing.featuresTitle": "Šta možete da uradite uz SciConnect?",
   "landing.featuresIntro":
     "Od pronalaženja laboratorijske analize do otkrivanja partnera za istraživanje, SciConnect pretvara rasute informacije u praktične prilike.",
   "landing.feature1Title": "Pronađite dijagnostičke usluge",
   "landing.feature1Text":
-    "Pretražite laboratorijske analize, pogledajte koje ih ustanove nude i saznajte koju opremu i tehnologije koriste.",
+    "Pretražite laboratorijske analize, pogledajte koje ih ustanove nude i saznajte koju opremu koriste.",
   "landing.feature2Title": "Povežite se sa stručnjacima",
   "landing.feature2Text":
-    "Pronađite istraživače i specijaliste iz svoje oblasti, upoznajte njihovu stručnost i pronađite potencijalne saradnike.",
+    "Pronađite istraživače i stručnjake iz svoje oblasti, upoznajte se sa njihovom ekspertizom i otkrijte nove mogućnosti za saradnju.",
   "landing.feature3Title": "Otkrijte istraživačke resurse",
   "landing.feature3Text":
-    "Istražite mogućnosti ustanova i naučne instrumente kako biste pronašli prilike za deljenje resursa i saradnju.",
+    "Istražite mogućnosti i naučnu opremu različitih ustanova i otkrijte prilike za zajedničko korišćenje resursa i uspostavljanje saradnje.",
+  "landing.feature4Title": "Nađite ustanove blizu Vas",
+  "landing.feature4Text":
+    "Pronađite ustanove koje odgovaraju Vašim potrebama i jednostavno istražite njihove lokacije na interaktivnoj mapi.",
   "landing.tryTitle": "Isprobajte",
   "landing.guestTitle": "Pregledajte kao gost",
   "landing.guestText":
-    "Pretražujte mogućnosti, pronađite ustanove u svojoj blizini i otvorite bilo koji zapis. Ključ nije potreban.",
+    "Ispitajte mogućnosti koje Vam nudi SciConnect – bez potrebe za logovanjem i šifrom.",
   "landing.guestButton": "Uđite kao gost",
   "landing.adminTitle": "Prijavite se kao administrator",
   "landing.adminText":
@@ -579,12 +582,12 @@ const sr: Record<MessageKey, string> = {
   "graph.questions": "Primeri pitanja",
   "graph.q1": "Koje ustanove imaju Real-Time PCR sistem?",
   "graph.q1.why": "Računaju se samo instrumenti koje ustanova zaista poseduje.",
-  "graph.q2": "Ko nudi sekvenciranje celog genoma za Listeria monocytogenes?",
+  "graph.q2": "Ko nudi uslugu sekvenciranja celog genoma za _Listeria monocytogenes_?",
   "graph.q2.why": "Za analizu mora biti navedeno da cilja taj organizam.",
   "graph.q3": "Ko izvodi ovu analizu i na kom instrumentu?",
   "graph.q3.why":
     "Instrument i istraživač moraju pripadati istoj ustanovi kao i analiza.",
-  "graph.q4": "Svih pet odjednom",
+  "graph.q4": "Sve odjednom",
   "graph.q4.why": "Svaka veza mora da se poklopi, unutar jedne ustanove.",
 
   // --- Sign in -----------------------------------------------------------
@@ -619,7 +622,7 @@ const sr: Record<MessageKey, string> = {
     "Imate pitanje, želite da Vaša ustanova bude u katalogu ili da postanete partner ili sponzor? Pišite nam.",
   "contact.email": "E-pošta",
   "contact.write": "Pošaljite mejl",
-  "footer.tagline": "© {year} SciConnect. Povezujemo nauku i prilike.",
+  "footer.tagline": "© {year} SciConnect. Povezujemo znanje. Stvaramo prilike.",
   "footer.contact": "Kontakt:",
 
   // --- Workspace ----------------------------------------------------------
