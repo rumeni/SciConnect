@@ -1257,20 +1257,28 @@ a.partner-card:hover { border-color: var(--accent-bright); }
   .session-bar.admin > button { grid-column: 1 / -1; }
   .workspace-head { margin-bottom: 22px; }
 
-  /* Section links: one row that scrolls sideways instead of four ragged rows. */
+  /* Section links: three equal buttons that always fit the width; a long
+     label wraps onto a second line rather than running off the screen. */
   .landing-nav {
     grid-column: 1 / -1;
     grid-row: 3;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    margin: 0 -14px;
-    padding: 2px 14px 6px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
-  .landing-nav::-webkit-scrollbar { display: none; }
-  .landing-nav a { flex: none; padding: 9px 12px; font-size: .78rem; white-space: nowrap; }
+  .landing-nav a {
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 6px;
+    font-size: .78rem;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  /* The graph is drawn at about half size here; its labels are scaled up in
+     the drawing's own units so they stay readable. */
+  .capability-graph text { font-size: 21px; }
+  .edge text { font-size: 18px; }
 
   .landing { gap: 40px; }
   .landing-hero { gap: 26px; padding: 30px 20px; border-radius: 12px; }
