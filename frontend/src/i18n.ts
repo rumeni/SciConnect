@@ -156,6 +156,7 @@ const en = {
   "contact.write": "Write an email",
   "footer.tagline": "© {year} SciConnect. Connecting knowledge. Creating opportunities.",
   "footer.contact": "Contact:",
+  "footer.toTop": "Back to top",
 
   // --- Workspace ----------------------------------------------------------
   "workspace.admin": "Admin",
@@ -628,6 +629,7 @@ const sr: Record<MessageKey, string> = {
   "contact.write": "Pošaljite mejl",
   "footer.tagline": "© {year} SciConnect. Povezujemo znanje. Stvaramo prilike.",
   "footer.contact": "Kontakt:",
+  "footer.toTop": "Na vrh",
 
   // --- Workspace ----------------------------------------------------------
   "workspace.admin": "Administrator",

@@ -1202,6 +1202,20 @@ a.partner-card:hover { border-color: var(--accent-bright); }
   margin: 0 auto;
   padding: 26px 0;
 }
+.site-footer-end { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+/* Back to top: transparent, a thin outline, nothing that moves. */
+.to-top {
+  padding: 7px 14px;
+  color: #ffffff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  font-size: .85rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.to-top:hover { border-color: #ffffff; }
+.to-top:focus-visible { outline-color: #ffb38c; }
 .site-footer a { color: #ffffff; font-weight: 650; text-decoration: none; }
 .site-footer a:hover { color: #ff946d; text-decoration: underline; text-underline-offset: 3px; }
 .site-footer a:focus-visible { outline-color: #ffb38c; }
