@@ -8,15 +8,21 @@ export function Footer() {
   /**
    * Scrolls up and takes keyboard focus along, so the next Tab starts at the
    * top of the page instead of continuing from the footer.
+   *
+   * `<main>` is made focusable only for this one move and loses it as soon as
+   * focus leaves. A permanent `tabIndex={-1}` would let every mouse click on
+   * empty space focus the whole page, so the next Tab would restart from the
+   * top instead of from where the visitor clicked. The footer sits outside the
+   * screens, so it finds the `<main>` on show rather than holding a ref to it.
    */
   const toTop = () => {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
-    const page = document.querySelector("main");
-    if (page) {
-      page.tabIndex = -1;
-      page.focus({ preventScroll: true });
-    }
+    const page = document.querySelector<HTMLElement>("main");
+    if (!page) return;
+    page.tabIndex = -1;
+    page.addEventListener("blur", () => page.removeAttribute("tabindex"), { once: true });
+    page.focus({ preventScroll: true });
   };
 
   return (

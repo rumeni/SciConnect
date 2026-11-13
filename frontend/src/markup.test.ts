@@ -50,6 +50,13 @@ describe("segments", () => {
     ]);
   });
 
+  it("reads a pair that spans a line break", () => {
+    expect(segments("**two\nlines** after")).toEqual([
+      { kind: "bold", text: "two\nlines" },
+      { kind: "text", text: " after" },
+    ]);
+  });
+
   it("reads several pairs in one sentence", () => {
     expect(segments("**bridges** the gap for __E. coli__ and **more**").map((s) => s.kind)).toEqual(
       ["bold", "text", "species", "text", "bold"],

@@ -2,9 +2,10 @@
  * The two marks start-page texts may carry: `**bold**` and `__species name__`,
  * each only as a closed pair and never one inside the other. A lone `**` or
  * `__`, or a single `_` as in snake_case, stays literal text. Species names
- * are Latin and written in italics by convention.
+ * are Latin and written in italics by convention. A pair may span a line
+ * break, hence `[\s\S]` rather than `.`.
  */
-const MARKUP = /\*\*(.+?)\*\*|__(.+?)__/g;
+const MARKUP = /\*\*([\s\S]+?)\*\*|__([\s\S]+?)__/g;
 
 export type Segment = { kind: "text" | "bold" | "species"; text: string };
 
