@@ -49,11 +49,15 @@ def test_an_explicit_driver_is_left_alone(given: str) -> None:
     assert _url(given) == given
 
 
-def test_the_resulting_url_resolves_to_psycopg3() -> None:
-    """The actual failure: a driverless URL resolved to the absent psycopg2."""
-    assert make_url("postgresql://u:p@h/db").get_dialect().driver == "psycopg2"
+@pytest.mark.parametrize("given", ["postgresql://u:p@h/db", "postgres://u:p@h/db"])
+def test_the_resulting_url_resolves_to_psycopg3(given: str) -> None:
+    """A driverless URL must end up on psycopg 3, the only driver installed.
 
-    resolved = make_url(_url("postgresql://u:p@h/db")).get_dialect()
+    SQLAlchemy's own default for a driverless URL changed between releases
+    (psycopg2 in 2.0, psycopg in 2.1), so this checks only the rewritten URL:
+    it names the driver itself and does not depend on that default.
+    """
+    resolved = make_url(_url(given)).get_dialect()
 
     assert resolved.driver == "psycopg"
 

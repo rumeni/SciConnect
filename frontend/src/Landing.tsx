@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { useT, type MessageKey, type Translate } from "./i18n";
 import { LanguageSwitch } from "./LanguageSwitch";
+import { plain, segments } from "./markup";
 import { Brand } from "./Logo";
 
 /**
@@ -102,7 +103,7 @@ export function Landing({
       </section>
 
       <section className="landing-about" id="about" tabIndex={-1}>
-        <article id="problem" tabIndex={-1}>
+        <article>
           <p className="eyebrow">{t("landing.problemEyebrow")}</p>
           <h2>{t("landing.problemTitle")}</h2>
           <p>
@@ -112,7 +113,7 @@ export function Landing({
             <Rich text={t("landing.problem2")} />
           </p>
         </article>
-        <article id="mission" tabIndex={-1}>
+        <article>
           <p className="eyebrow">{t("landing.missionEyebrow")}</p>
           <h2>{t("landing.missionTitle")}</h2>
           <p>
@@ -189,26 +190,24 @@ const FEATURES: { symbol: string; title: MessageKey; text: MessageKey }[] = [
   { symbol: "📍", title: "landing.feature4Title", text: "landing.feature4Text" },
 ];
 
-/**
- * A translated sentence whose **starred** parts are set in bold and whose
- * _underscored_ parts in italics — the latter for species names, which are
- * written in italics by convention.
- */
+/** A translated sentence with its markup rendered; see markup.ts. */
 function Rich({ text }: { text: string }) {
   return (
     <>
-      {text.split("**").map((part, index) => {
-        const inner = part
-          .split("_")
-          .map((piece, at) => (at % 2 === 1 ? <em key={at}>{piece}</em> : piece));
-        return index % 2 === 1 ? <strong key={index}>{inner}</strong> : inner;
-      })}
+      {segments(text).map((part, index): ReactNode =>
+        part.kind === "bold" ? (
+          <strong key={index}>{part.text}</strong>
+        ) : part.kind === "species" ? (
+          <em key={index} lang="la">
+            {part.text}
+          </em>
+        ) : (
+          part.text
+        ),
+      )}
     </>
   );
 }
-
-/** The same sentence as plain text, for labels that cannot hold markup. */
-const plain = (text: string) => text.replace(/\*\*|_/g, "");
 
 type NodeId = "institution" | "instrument" | "analysis" | "researcher" | "microorganism";
 
