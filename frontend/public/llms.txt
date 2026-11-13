@@ -1,0 +1,9 @@
+# SciConnect
+
+> SciConnect helps visitors discover scientific institutions and their research capabilities.
+
+## Pages
+
+- [Homepage](https://sciconnect.rs/): Overview of SciConnect and entry to the platform.
+- [Partners](https://sciconnect.rs/partners): Partner organizations supporting SciConnect.
+- [Contact](https://sciconnect.rs/kontakt): Contact information for the SciConnect team.
