@@ -1,9 +1,13 @@
 # SciConnect
 
-> SciConnect helps visitors discover scientific institutions and their research capabilities.
+> SciConnect is a bilingual (Serbian and English) platform for discovering scientific institutions and their research capabilities.
+
+## What you can do
+
+Visitors can browse research institutions, scientific instruments, available analyses, researchers, and target microorganisms. SciConnect supports combined capability searches and a map-based view of nearby institutions.
 
 ## Pages
 
-- [Homepage](https://sciconnect.rs/): Overview of SciConnect and entry to the platform.
-- [Partners](https://sciconnect.rs/partners): Partner organizations supporting SciConnect.
-- [Contact](https://sciconnect.rs/kontakt): Contact information for the SciConnect team.
+- [Homepage](https://sciconnect.rs/): Introduction to SciConnect and access to research capability search.
+- [Partners](https://sciconnect.rs/partners): Organizations supporting the SciConnect project.
+- [Contact](https://sciconnect.rs/kontakt): Contact details for the SciConnect team.
