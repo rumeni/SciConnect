@@ -79,6 +79,13 @@ Ako migracija ili smoke test ne prodju, workflow se oznacava kao neuspesan.
 Skripta NE vraca automatski bazu: migracija je mozda vec promenila semu.
 Lokacija backup-a i trag neuspeha ostaju, a vlasnik bira oporavak.
 
+**Disk/retention:** pre backup-a proverava se raspoloziv prostor
+(najmanje dvostruka velicina baze plus 512 MiB rezerve). Backup i izdanja
+se **ne brisu automatski**: operator mora redovno da proverava kapacitet,
+odnosi proverene kopije van servera i zatim rucno uklanja stare dump-ove.
+Ne brisati poslednje proverene off-site kopije niti release direktorijume
+za current/previous: Caddy koristi fajl iz aktivnog direktorijuma.
+
 ## Vezba restore-a bez produkcionih promena
 
 Preneti poslednji custom .dump sa servera na staging/operatersku masinu.
@@ -117,6 +124,11 @@ pa tek nakon tih provera oznacava vraceno izdanje kao poslednje dobro
 (dok prethodni digest zadrzava za svesni roll-forward). Operator ipak
 treba dodatno da proveri stvarne podatke i poslovne funkcije u browseru.
 Ako migracija nije kompatibilna, potreban je zaseban plan oporavka baze.
+Nakon prvog pinovanog release-a nikada ne koristiti stari
+git-pull/Compose --build postupak iz legacy uputstva niti stari image
+kao brzi fallback bez provere: stara Alembic revizija moze crash-loopovati.
+Ako je sema promenjena nekompatibilno, povratak na legacy zahteva
+eksplicitno odobren restore pre-release backup-a u cistu bazu.
 
 **Prvi prelazak** sa rucno gradjene Docker slike nema sacuvan GHCR digest
 te stare slike. Pre prvog odobrenog release-a sacuvati checkout, postojece
@@ -128,6 +140,10 @@ baseline). Bez toga nema garantovanog brzog rollback-a na staru verziju.
 - GitHub Environment prava, SSH pristup, prava za GHCR i firewall nisu
   automatski dokaziva ovim PR-om.
 - Testiranje migracija na PostgreSQL iz tiketa #9 ostaje uslov za CD.
+- CI na main otkazuje stariji run kada stigne novi commit: SHA bez
+  zavrsenog zelenog push run-a namerno nije dozvoljen za release.
+- Za Docker Compose release overlay potrebno je izdanje koje podrzava
+  YAML !reset (Compose v2.24.4 ili novije); proveriti na staging hostu.
 - Proba migracije i baze na stagingu je neophodna i ne zamenjuje je CI.
 - Rollback aplikacije ne znaci rollback baze.
 - Deploy nikada nije automatski posledica merge-a u main.

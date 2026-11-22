@@ -42,6 +42,9 @@ def test_workflow_requires_manual_dispatch_approval_and_opt_in() -> None:
     assert re.search(r"(?m)^on:\s*\n\s+workflow_dispatch:", workflow)
     assert not re.search(r"(?m)^\s+(push|pull_request|schedule):", workflow)
     assert "SCICONNECT_CD_ENABLED" in workflow
+    assert "bash -s --" not in workflow
+    assert "RELEASE_OK $SHA" in workflow
+    assert "github.ref == 'refs/heads/main'" in workflow
     assert "environment: production" in workflow
     assert "python3 scripts/release/verify_release.py" in workflow
     assert "needs.verify.outputs.sha" in workflow
@@ -58,6 +61,7 @@ def test_workflow_requires_manual_dispatch_approval_and_opt_in() -> None:
 def test_release_overlay_never_migrates_on_regular_api_restart() -> None:
     config = (ROOT / "compose.release.yaml").read_text()
     assert 'APP_RUN_MIGRATIONS: "false"' in config
+    assert "build: !reset null" in config
     assert "SCICONNECT_API_IMAGE" in config
     assert "SCICONNECT_FRONTEND_IMAGE" in config
     entrypoint = (ROOT / "backend/docker-entrypoint.sh").read_text()

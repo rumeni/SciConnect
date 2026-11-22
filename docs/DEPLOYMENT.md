@@ -174,18 +174,29 @@ Novi workflow radi samo na rucni poziv; merge ne deployuje sajt.
 
 ## Održavanje
 
-**Nova verzija:**
+**Nova verzija (SAMO rucni legacy rezim, pre prvog odobrenog release-a):**
 ```bash
 cd ~/SciConnect && git pull
 docker compose -f compose.prod.yaml --env-file .env.production up -d --build
 ```
-Migracije baze se pokreću same pri startu API-ja.
+Migracije baze se u tom starom rezimu pokrecu same pri startu API-ja.
 
-**Promena admin ključa** (npr. ako je procurio): upiši novi u `.env.production`, pa:
+**VAZNO: nakon PR #11 digest-pinned release-a, NE pokretati prethodnu
+komandu niti obican `up -d api` bez overlay-a.** One mogu zameniti
+odobrene slike starim lokalnim buildom i startovati nekompatibilne Alembic
+migracije. Za naredni deploy, promenu konfiguracije i rollback koristiti
+iste odobrene release digest-e i overlay prema [RELEASE.md](RELEASE.md).
+Povratak na legacy verziju nakon nove migracije moze zahtevati zaseban,
+odobren restore baze, nije automatski siguran.
+
+**Promena admin ključa u legacy rezimu** (npr. ako je procurio): upiši novi u `.env.production`, pa:
 ```bash
 docker compose -f compose.prod.yaml --env-file .env.production up -d api
 ```
-Stari ključ prestaje da važi odmah, svuda. Admin koji je bio prijavljen biva odjavljen pri sledećoj izmeni, uz poruku da se prijavi ponovo.
+Ova komanda je **samo za legacy instalaciju pre digest release-a**.
+Nakon kontrolisanog release-a koristi pinovanu API sliku i release overlay,
+bez automatske migracije; postupak je u [RELEASE.md](RELEASE.md).
+Stari ključ prestaje da važi posle ponovnog podizanja API-ja.
 
 **Rezervna kopija baze** (pored Hetzner snimaka). Dodaj u `crontab -e`:
 ```

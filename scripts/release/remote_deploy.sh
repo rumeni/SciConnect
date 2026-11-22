@@ -47,6 +47,19 @@ db_container="$("${compose[@]}" ps -q db)"
 "${compose[@]}" pull api frontend
 "${compose[@]}" run --rm --no-deps --entrypoint alembic api heads >/dev/null
 
+# Refuse a backup if the local disk cannot hold a conservative estimate.
+# This fails CLOSED rather than consuming Postgres' free disk while dumping.
+db_bytes="$("${compose[@]}" exec -T db sh -ec   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT pg_database_size(current_database())"'   | tr -d '\r\n')"
+free_kb="$(df -Pk "$root/backups" | awk 'NR==2 {print $4}')"
+[[ "$db_bytes" =~ ^[0-9]+$ && "$free_kb" =~ ^[0-9]+$ ]] || {
+  echo "Could not determine database size or available backup storage" >&2; exit 1;
+}
+minimum_bytes=$((db_bytes * 2 + 512 * 1024 * 1024))
+((free_kb * 1024 > minimum_bytes)) || {
+  echo "Insufficient free disk for pre-migration backup; offload old verified dumps" >&2
+  exit 1
+}
+
 # Never use an unverified partial backup. Keep it outside the release directory.
 backup="$root/backups/pre-${sha}-$(date -u +%Y%m%dT%H%M%SZ).dump"
 partial="$backup.partial"
