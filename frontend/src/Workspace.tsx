@@ -85,6 +85,9 @@ export function Workspace({
   // Bumped whenever a write lands, so every derived list is recomputed and
   // not just the ones that happen to depend on the filters.
   const [dataVersion, setDataVersion] = useState(0);
+  // Keep Load more visually disabled even when a newer user search completes
+  // before a catalog refresh does.
+  const [refreshing, setRefreshing] = useState(false);
 
   /**
    * Searches resolve out of order: change a filter, or press Clear, and a slow
@@ -92,6 +95,8 @@ export function Workspace({
    * results, the error or the loading flag.
    */
   const latestSearch = useRef(0);
+  // Only the newest overlapping catalog refresh may update data or clear the gate.
+  const latestRefresh = useRef(0);
   // Prevent paging old results while a post-write catalog refresh is in flight.
   const refreshingCatalog = useRef(false);
 
@@ -141,24 +146,31 @@ export function Workspace({
   ]);
 
   const refresh = useCallback(async () => {
+    const refreshTicket = ++latestRefresh.current;
     // An older catalog refresh must not replace a search submitted while it loaded.
     const searchAtStart = latestSearch.current;
     refreshingCatalog.current = true;
+    setRefreshing(true);
     setLoading(true);
     try {
       const [loaded, points] = await Promise.all([loadCatalogs(canEdit), api.mapInstitutions()]);
+      // A later write started another refresh: ignore this older snapshot.
+      if (refreshTicket !== latestRefresh.current) return;
       setCatalogs(loaded);
       setMapPoints(points);
       setDataVersion((count) => count + 1);
       // Refresh the submitted search, not unsubmitted edits in the filter fields.
       if (latestSearch.current === searchAtStart) await runSearch(applied);
     } catch (reason) {
-      if (latestSearch.current === searchAtStart) {
-        setError(reason instanceof Error ? reason.message : t("common.apiUnavailable"));
-        setLoading(false);
-      }
+      if (refreshTicket !== latestRefresh.current) return;
+      // Catalog failures must remain visible even if a newer search started.
+      setError(reason instanceof Error ? reason.message : t("common.apiUnavailable"));
+      if (latestSearch.current === searchAtStart) setLoading(false);
     } finally {
-      refreshingCatalog.current = false;
+      if (refreshTicket === latestRefresh.current) {
+        refreshingCatalog.current = false;
+        setRefreshing(false);
+      }
     }
   }, [applied, canEdit, runSearch, t]);
 
@@ -330,7 +342,7 @@ export function Workspace({
           filterLabel={filterLabel}
           onOpen={openDetail}
           results={results}
-          loading={loading}
+          loading={loading || refreshing}
           error={error}
         />
       ) : view === "nearby" ? (
