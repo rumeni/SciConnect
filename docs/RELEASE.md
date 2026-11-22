@@ -21,6 +21,11 @@ bez registrija i bez produkcionih tajni.
    GHCR_READ_USERNAME i GHCR_READ_TOKEN. SSH known_hosts mora biti proveren
    nezavisnim pouzdanim kanalom, ne automatski preuzet tokom release-a.
    GHCR token treba da ima samo read:packages i pristup odgovarajucim paketima.
+   Token se tokom release-a cuva samo u privremenom server-side
+   DOCKER_CONFIG direktorijumu, koji se po zavrsetku pozadinskog
+   release procesa brise. Prekinut proces bez zavrsnog statusa zahteva
+   da operator ukloni zaostali token i rotira ga, ako postoji sumnja na
+   kompromitovanje.
    DB lozinka i APP_ADMIN_TOKEN ostaju samo na serveru u
    ~/SciConnect/.env.production (dozvole 600).
 4. Postojeci Hetzner firewall treba da ostane restriktivan. GitHub-hostovani
@@ -81,6 +86,19 @@ rad sa serverom. Sam merge u main **nikada** ne pokrece produkcioni deploy.
    sa migracionom revizijom.
 6. Samo ako sve provere prodju snimiti release-state/current-release
    i release-state/previous-release sa SHA i tacnim image digestima.
+   Server-side zapis o pokusaju cuva se u
+   ~/SciConnect/release-state/deploy-attempts/RUN_ID-ATTEMPT/
+   (release.log, exit-code, worker.pid). Skripta prijavljuje RELEASE_OK
+   samo ako je backend stvarno zavrsio i sve provere prosle.
+
+**Prekid workflow-a nije prekid deploymenta.** Nakon sto je release proces
+pokrenut na serveru nezavisno od SSH sesije, otkazivanje GitHub Actions
+posla ili privremeni prekid mreze NE zaustavlja migraciju. Ne pokretati
+novi deploy napamet: prvo proveriti server-side log i exit-code, stanje
+baze, postojeci release-state/current-release i zdravlje sajta.
+Dok je proces u toku, server-side flock sprecava paralelan rollout.
+Status RELEASE_UNKNOWN je incident za operatersku istragu, ne dozvola
+za automatsko ponavljanje.
 
 Ako migracija ili smoke test ne prodju, workflow se oznacava kao neuspesan.
 Skripta NE vraca automatski bazu: migracija je mozda vec promenila semu.
@@ -110,6 +128,37 @@ backup-a mora se zabeleziti pre ukljucivanja produkcionog CD-a.
 Za stvarni restore zaustaviti upise, sacuvati trenutno stanje, otvoriti
 cistu ciljnu bazu i eksplicitno odobriti destruktivnu zamenu.
 Ne postoji automatski Alembic downgrade.
+
+## Promena konfiguracije i rotacija admin kljuca
+
+Nakon prvog pinovanog release-a **ne pokretati** legacy `docker compose
+up -d api` bez odgovarajuceg release overlay-a. Za promenu
+`APP_ADMIN_TOKEN` (ukljucujuci hitnu rotaciju kompromitovanog kljuca),
+rate limita i drugih parametara:
+
+1. Kao deploy korisnik proveriti i urediti
+   `~/SciConnect/.env.production` uz dozvole 600; vrednosti ne upisivati u
+   GitHub komentare ili logove. Sacuvati rezervnu kopiju konfiguracije
+   na bezbednom mestu.
+2. Ponovo primeniti **current** pinovanu verziju, bez migriranja baze:
+
+       cd ~/SciConnect
+       sha="$(awk '{print $1}' release-state/current-release)"
+       CONFIRM_DB_COMPATIBLE=yes bash "releases/$sha/scripts/release/remote_rollback.sh" current
+
+   Ova skripta koristi istu Compose overlay datoteku i pinovane digest-e.
+   Ako su oba digest-a lokalno sacuvana, povratak ne zavisi od GHCR.
+   Promena env postavki treba da izazove Compose recreate odgovarajuceg
+   kontejnera; proveriti status i, za admin token, da novi radi a stari vise
+   ne radi. Ako se kontejner ne recreira, ne koristiti legacy `up`:
+   rucno primeniti kontrolisanu promenu sa istim digestima i overlay-em.
+3. Proveriti HTTPS pocetnu, `/api/v1/health`, katalog i bezbednu
+   prijavu. Promena `SITE_DOMAIN` zahteva i proveru DNS/Caddy/TLS-a.
+
+Rollback operator potvrdom `CONFIRM_DB_COMPATIBLE=yes` ne vraca bazu;
+ovde se koristi samo da sacuva migracioni gate prilikom kontrolisanog
+ponovnog aktiviranja iste verzije. Posle incidenta rotirati i kompromitovane
+GHCR/SSH tokene zasebno, ako je potrebno.
 
 ## Rucni rollback aplikacije
 
@@ -152,5 +201,13 @@ baseline). Bez toga nema garantovanog brzog rollback-a na staru verziju.
 - Za Docker Compose release overlay potrebno je izdanje koje podrzava
   YAML !reset (Compose v2.24.4 ili novije); proveriti na staging hostu.
 - Proba migracije i baze na stagingu je neophodna i ne zamenjuje je CI.
+- Odluka reviewera pre aktivacije mora da potvrdi #9, main-only
+  Environment, namenski firewall, staging, postojanje proslog proverljivog
+  off-site backup-a i plan nadzora udaljene release sesije. Nisu svi uslovi
+  automatski provereni workflow-om.
+- Lokalni current/previous GHCR digest-i moraju ostati dostupni za rollback:
+  ne pokretati neselektivni `docker image prune -a`. Ako digest zaista
+  nedostaje, rollback pokusava samo pull odobrenog SHA256 digest-a;
+  dostupnost registrija i dalje moze da bude ogranicenje.
 - Rollback aplikacije ne znaci rollback baze.
 - Deploy nikada nije automatski posledica merge-a u main.

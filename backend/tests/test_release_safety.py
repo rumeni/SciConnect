@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -94,6 +95,72 @@ def test_backup_reads_complete_archive_and_smoke_checks_deployed_images() -> Non
     assert "docker inspect --format '{{.Config.Image}}'" in deploy
     assert "docker inspect --format '{{.Config.Image}}'" in rollback
     assert 'docker image inspect "$api_image"' in rollback
+
+
+
+@pytest.mark.parametrize("exit_code", [0, 9])
+def test_detached_release_survives_launcher_exit_and_cleans_credentials(
+    tmp_path: pathlib.Path, exit_code: int
+) -> None:
+    """Run the real launcher/worker in isolation; emulate only docker login.
+
+    The launcher exits before the delayed release completes. A remote SSH
+    disconnect cannot swallow the remaining script or forge a successful job.
+    """
+    sha = "a" * 40
+    attempt = f"1234-{exit_code + 1}"
+    release = tmp_path / "SciConnect" / "releases" / sha
+    scripts = release / "scripts" / "release"
+    scripts.mkdir(parents=True)
+    session = SCRIPTS / "remote_session.sh"
+    (scripts / session.name).write_text(session.read_text())
+    (release / "compose.release.yaml").write_text("services: {}\n")
+    (scripts / "remote_deploy.sh").write_text(
+        "#!/bin/bash\nsleep 0.4\n"
+        + (f"echo 'RELEASE_OK {sha}'\n" if exit_code == 0 else "")
+        + f"exit {exit_code}\n"
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_docker = fake_bin / "docker"
+    fake_docker.write_text(
+        "#!/bin/sh\n"
+        "test \"$1\" = login || exit 42\n"
+        "cat >/dev/null\n"
+    )
+    fake_docker.chmod(0o755)
+    env = {
+        **os.environ, "HOME": str(tmp_path),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+    }
+    api = "ghcr.io/example/api@sha256:" + "a" * 64
+    frontend = "ghcr.io/example/frontend@sha256:" + "b" * 64
+    started = subprocess.run(
+        ["bash", str(session), "start", sha, attempt, api, frontend, "operator"],
+        input="temporary-read-only-token",
+        capture_output=True, text=True, env=env, timeout=10,
+    )
+    assert started.returncode == 0, started.stderr
+    assert started.stdout.strip() == f"RELEASE_STARTED {sha} {attempt}"
+
+    status = ""
+    for _ in range(60):
+        checked = subprocess.run(
+            ["bash", str(session), "status", sha, attempt],
+            capture_output=True, text=True, env=env, timeout=10,
+        )
+        assert checked.returncode == 0, checked.stderr
+        status = checked.stdout.strip()
+        if status != f"RELEASE_RUNNING {sha} {attempt}":
+            break
+        time.sleep(0.1)
+
+    expected = "RELEASE_OK" if exit_code == 0 else "RELEASE_FAILED"
+    assert status == f"{expected} {sha} {attempt}"
+    attempt_folder = tmp_path / "SciConnect" / "release-state" / "deploy-attempts" / attempt
+    assert (attempt_folder / "exit-code").read_text().strip() == str(exit_code)
+    assert not (attempt_folder / "docker-auth").exists()
+    assert not (tmp_path / ".docker" / "config.json").exists()
 
 
 def test_prod_compose_override_is_valid_when_docker_is_installed() -> None:
