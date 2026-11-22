@@ -1,5 +1,5 @@
 # Overlay for manually approved, digest-pinned releases only.
-# Always combine with compose.prod.yaml and use --no-build --pull always.
+# Always combine with compose.prod.yaml and use --no-build --pull never (after explicit app digest pulls).
 # Normal docker compose development/production builds are unchanged.
 services:
   api:

@@ -32,7 +32,10 @@ compose=(docker compose -p sciconnect --project-directory "$release" \
   -f "$release/compose.prod.yaml" -f "$release/compose.release.yaml" \
   --env-file "$root/.env.production")
 "${compose[@]}" config --quiet
-"${compose[@]}" up -d --no-build --pull always --wait --wait-timeout 180
+# Pull only the selected, immutable application digests. Never pull mutable
+# postgres/caddy tags as an accidental side effect of application rollback.
+"${compose[@]}" pull api frontend
+"${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 180
 # The app may boot but be unhealthy at its public HTTPS entrypoint.
 # Promote rollback state only after public/API smoke and DB readiness.
 domain="$(sed -n 's/^SITE_DOMAIN=//p' "$root/.env.production" | tail -n 1)"

@@ -67,7 +67,9 @@ rad sa serverom. Sam merge u main **nikada** ne pokrece produkcioni deploy.
    starta novog API-ja. APP_RUN_MIGRATIONS=false na release overlay-u
    sprecava automatsko pokretanje migracija pri restartu ili rollback-u.
    Postojeci rucni Compose bez overlay-a i dalje migrira pri startu.
-5. Pustiti Compose sa --no-build --pull always --wait; potvrditi HTTPS
+5. Pustiti Compose sa --no-build --pull never --wait, nakon posebnog pull-a
+   samo za pinovane API/frontend slike. Ovo sprecava neplanirani update
+   promenljivih Postgres/Caddy tagova; potvrditi HTTPS
    pocetnu stranu, javni API health, katalog i interni SQL readiness
    sa migracionom revizijom.
 6. Samo ako sve provere prodju snimiti release-state/current-release

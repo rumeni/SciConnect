@@ -60,7 +60,7 @@ echo "Do not restore a database automatically after migration; see docs/RELEASE.
 # Migration is an explicit one-off container. New API starts with migrations
 # disabled, avoiding repeated migrations during restarts or rollback.
 "${compose[@]}" run --rm --no-deps --entrypoint alembic api upgrade head
-"${compose[@]}" up -d --no-build --pull always --wait --wait-timeout 180
+"${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 180
 
 # Read only the domain from the local env; never echo credentials to logs.
 domain="$(sed -n 's/^SITE_DOMAIN=//p' "$env_file" | tail -n 1)"
