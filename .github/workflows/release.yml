@@ -1,0 +1,154 @@
+name: Safe production release
+
+# No push/pull_request trigger: merging to main never touches the server.
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "40-character, CI-green commit SHA already on main"
+        required: true
+        type: string
+      dry_run:
+        description: "Validate only; do not publish images or access production"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+# No two manual releases (including approvals) may run concurrently.
+concurrency:
+  group: sciconnect-production-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify input and opt-in
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CD_ENABLED: ${{ vars.SCICONNECT_CD_ENABLED }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$DRY_RUN" == "false" && "$CD_ENABLED" != "true" ]]; then
+            echo "::error::Enable SCICONNECT_CD_ENABLED only after configuring required production Environment reviewers and rehearsal."
+            exit 1
+          fi
+          python3 scripts/release/verify_release.py "$RELEASE_SHA"
+          echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+        id: release
+      - name: Check shell syntax, verification tests and Compose overlay
+        run: |
+          set -euo pipefail
+          for script in scripts/release/*.sh; do bash -n "$script"; done
+          python3 -m unittest discover -s scripts/release/tests -v
+          export SITE_DOMAIN=example.org POSTGRES_DB=testdb POSTGRES_USER=testuser
+          export POSTGRES_PASSWORD=test-password APP_ADMIN_TOKEN=1234567890123456789012345678901234
+          export SCICONNECT_API_IMAGE=ghcr.io/example/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          export SCICONNECT_FRONTEND_IMAGE=ghcr.io/example/frontend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          docker compose -f compose.prod.yaml -f compose.release.yaml config --quiet
+      - name: Dry-run result
+        if: ${{ inputs.dry_run }}
+        run: echo "Dry-run complete. No registry push, SSH or production access occurred."
+
+  deploy:
+    needs: verify
+    if: ${{ !inputs.dry_run && needs.verify.result == 'success' }}
+    # IMPORTANT: the owner must configure this GitHub Environment with REQUIRED
+    # REVIEWERS; the workflow alone cannot create or verify those settings.
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish exact-sha images, capture immutable digests
+        id: images
+        env:
+          SHA: ${{ needs.verify.outputs.sha }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          api="ghcr.io/${repo}-api"
+          frontend="ghcr.io/${repo}-frontend"
+          docker buildx build --push --tag "$api:$SHA" \
+            --metadata-file "$RUNNER_TEMP/api-meta.json" ./backend
+          docker buildx build --push --target production --tag "$frontend:$SHA" \
+            --metadata-file "$RUNNER_TEMP/frontend-meta.json" ./frontend
+          digest_of() {
+            python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$1"
+          }
+          api_digest="$(digest_of "$RUNNER_TEMP/api-meta.json")"
+          frontend_digest="$(digest_of "$RUNNER_TEMP/frontend-meta.json")"
+          [[ "$api_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$frontend_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "api=$api@$api_digest" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend@$frontend_digest" >> "$GITHUB_OUTPUT"
+          echo "Built and pinned both images for $SHA"
+      - name: Deploy after Environment approval, backup and migration gate
+        env:
+          SHA: ${{ needs.verify.outputs.sha }}
+          API_IMAGE: ${{ steps.images.outputs.api }}
+          FRONTEND_IMAGE: ${{ steps.images.outputs.frontend }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+          GHCR_READ_USERNAME: ${{ secrets.GHCR_READ_USERNAME }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?missing DEPLOY_HOST}"
+          : "${SSH_USER:?missing DEPLOY_USER}"
+          : "${SSH_PRIVATE_KEY:?missing SSH private key}"
+          : "${SSH_KNOWN_HOSTS:?missing pinned host key}"
+          : "${GHCR_READ_USERNAME:?missing GHCR read user}"
+          : "${GHCR_READ_TOKEN:?missing GHCR read token}"
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$SSH_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+          [[ "$GHCR_READ_USERNAME" =~ ^[a-zA-Z0-9_-]+$ ]]
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/sciconnect_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/sciconnect_known_hosts"
+          ssh_opts=(-i "$RUNNER_TEMP/sciconnect_key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/sciconnect_known_hosts")
+          target="$SSH_USER@$SSH_HOST"
+          ssh "${ssh_opts[@]}" "$target" "mkdir -p \"\\$HOME/SciConnect/releases/$SHA\""
+          tar -cf - compose.prod.yaml compose.release.yaml Caddyfile | \
+            ssh "${ssh_opts[@]}" "$target" "tar -xf - -C \"\\$HOME/SciConnect/releases/$SHA\""
+          printf '%s' "$GHCR_READ_TOKEN" | \
+            ssh "${ssh_opts[@]}" "$target" \
+              "docker login ghcr.io --username '$GHCR_READ_USERNAME' --password-stdin >/dev/null"
+          ssh "${ssh_opts[@]}" "$target" bash -s -- "$SHA" "$API_IMAGE" "$FRONTEND_IMAGE" \
+            < scripts/release/remote_deploy.sh
+      - name: Release identity
+        env:
+          SHA: ${{ needs.verify.outputs.sha }}
+          API_IMAGE: ${{ steps.images.outputs.api }}
+          FRONTEND_IMAGE: ${{ steps.images.outputs.frontend }}
+        run: |
+          echo "Deployed commit: $SHA"
+          echo "API image: $API_IMAGE"
+          echo "Frontend image: $FRONTEND_IMAGE"
