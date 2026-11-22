@@ -33,10 +33,30 @@ compose=(docker compose -p sciconnect --project-directory "$release" \
   -f "$release/compose.prod.yaml" -f "$release/compose.release.yaml" \
   --env-file "$root/.env.production")
 "${compose[@]}" config --quiet
-# Pull only the selected, immutable application digests. Never pull mutable
-# postgres/caddy tags as an accidental side effect of application rollback.
-"${compose[@]}" pull api frontend
+# A rollback must work even with GHCR offline or credentials revoked: keep
+# current/previous image digests in the local store. Only pull a missing
+# image (which requires separately supplied, scoped read credentials).
+if ! docker image inspect "$api_image" >/dev/null 2>&1 ||
+   ! docker image inspect "$frontend_image" >/dev/null 2>&1; then
+  echo "Rollback digest absent locally; attempting approved digest pull" >&2
+  "${compose[@]}" pull api frontend
+fi
+# Display the target Alembic head for operator compatibility assessment:
+# an old API may be compatible with newer migrations, so do not demand
+# equality on rollback. CONFIRM_DB_COMPATIBLE is a deliberate manual gate.
+"${compose[@]}" run --rm --no-deps --entrypoint alembic api heads
 "${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 180
+
+for service in api frontend; do
+  cid="$("${compose[@]}" ps -q "$service")"
+  [[ -n "$cid" ]] || { echo "Missing $service container" >&2; exit 1; }
+  image_ref="$(docker inspect --format '{{.Config.Image}}' "$cid")"
+  if [[ "$service" == api ]]; then expected_image="$api_image"
+  else expected_image="$frontend_image"; fi
+  [[ "$image_ref" == "$expected_image" ]] || {
+    echo "Wrong running $service image; rollback not accepted" >&2; exit 1;
+  }
+done
 # The app may boot but be unhealthy at its public HTTPS entrypoint.
 # Promote rollback state only after public/API smoke and DB readiness.
 domain="$(sed -n 's/^SITE_DOMAIN=//p' "$root/.env.production" | tail -n 1)"

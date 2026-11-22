@@ -11,7 +11,10 @@ bez registrija i bez produkcionih tajni.
    migracija od prazne baze. Postojeci SQLite testovi nisu zamena.
 2. GitHub → Settings → Environments → **production**: ukljuciti required
    reviewers, ograniciti granu na main, po mogucnosti iskljuciti admin bypass
-   i proveriti da odobrenje zaista blokira posao. **Workflow to ne moze da
+   i proveriti da odobrenje zaista blokira posao. **Obavezno** ograniciti
+   produkcioni Environment na main (pravilo grana), zahtevati zasebnog
+   reviewera i zabraniti sopstveno odobravanje gde plan dozvoljava.
+   **Workflow to ne moze da
    podesi ili potvrdi umesto vlasnika.**
 3. U GitHub Environment production postaviti samo ove tajne:
    DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_PRIVATE_KEY, DEPLOY_SSH_KNOWN_HOSTS,
@@ -26,7 +29,9 @@ bez registrija i bez produkcionih tajni.
    staticki egress ili namenski zastiteni deploy runner, uz odgovarajuce
    mreze/allowlist pravilo. U suprotnom zivi SSH korak nece raditi.
 5. Na zasebnom staging serveru vezbati kopiju baze, migraciju, release,
-   sve health/smoke provere i operator rollback. Proveriti slobodan disk.
+   sve health/smoke provere i operator rollback. Proveriti slobodan disk. Odobravalac mora eksplicitno
+   potvrditi da prethodni off-site backup postoji i da je odradjena proba
+   vracanja baze na stagingu; workflow ne moze sam dokazati ove uslove.
 6. Tek posle provere GitHub Environment pravila i staging vezbe dodati
    repository variable SCICONNECT_CD_ENABLED=true. Bez toga zivi deploy
    zavrsava neuspesno, ne preskace se tiho.
@@ -40,7 +45,8 @@ Pre svake objave proverava se:
 - commit postoji i predak je origin/main;
 - **bas taj SHA** ima zavrsen uspesan CI workflow, sa push dogadjajem na main;
 - release skripte imaju ispravnu Bash sintaksu i unit testovi su zeleni;
-- kombinovana produkciona Compose konfiguracija je validna.
+- kombinovana produkciona Compose konfiguracija **iz izabranog SHA**
+  je validna (a ne samo trenutna verzija main grane).
 
 Zelen PR CI nije dovoljan. Dry-run ne pravi GHCR slike, ne koristi SSH i
 ne dodiruje produkciju. Novi workflow_dispatch fajl moze da ne bude vidljiv
@@ -60,7 +66,8 @@ rad sa serverom. Sam merge u main **nikada** ne pokrece produkcioni deploy.
    novih slika. GitHub workflow i server koriste brave protiv preklapanja.
 3. Napraviti custom-format PostgreSQL backup u
    ~/SciConnect/backups/pre-SHA-UTC.dump. Parcijalni dump nije prihvacen.
-   Proveriti ga sa pg_restore --list i sacuvati SHA256 kontrolnu sumu.
+   Proveriti citav dump sa pg_restore -f /dev/null (ne samo TOC sa --list)
+   i sacuvati SHA256 kontrolnu sumu. Ovo nije zamena za vezbu stvarnog restore-a.
    Potreban je i **odvojeni off-site backup**; kopija na istom hostu nije
    zastita od gubitka diska ili servera.
 4. Pokrenuti jednokratnu Alembic migraciju iz nove pinovane slike, pre

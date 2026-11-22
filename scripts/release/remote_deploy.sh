@@ -45,7 +45,12 @@ db_container="$("${compose[@]}" ps -q db)"
 
 # Pull first so failures in registry/credentials cannot alter the database.
 "${compose[@]}" pull api frontend
-"${compose[@]}" run --rm --no-deps --entrypoint alembic api heads >/dev/null
+# Only one Alembic head is supported by this release gate.
+heads="$("${compose[@]}" run --rm --no-deps --entrypoint alembic api heads)"
+expected_revision="$(printf '%s\n' "$heads" | awk 'NF {print $1}')"
+[[ "$expected_revision" =~ ^[a-zA-Z0-9_]+$ ]] || {
+  echo "Expected exactly one valid Alembic head, got: $heads" >&2; exit 1;
+}
 
 # Refuse a backup if the local disk cannot hold a conservative estimate.
 # This fails CLOSED rather than consuming Postgres' free disk while dumping.
@@ -69,7 +74,10 @@ trap 'rm -f -- "$partial"' EXIT
 "${compose[@]}" exec -T db sh -ec \
   'exec pg_dump -Fc --no-owner --no-acl -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$partial"
 [[ -s "$partial" ]] || { echo "Empty database backup" >&2; exit 1; }
-"${compose[@]}" exec -T db pg_restore --list < "$partial" >/dev/null
+# Parse every data block, not just the TOC: pg_restore --list accepts
+# a valid header plus a truncated body. This is not a substitute for a
+# staging restore into a clean database, but rejects truncated archives.
+"${compose[@]}" exec -T db pg_restore -f /dev/null < "$partial" >/dev/null
 mv -- "$partial" "$backup"
 sha256sum "$backup" > "$backup.sha256"
 echo "Verified pre-migration backup: $backup"
@@ -79,6 +87,19 @@ echo "Do not restore a database automatically after migration; see docs/RELEASE.
 # disabled, avoiding repeated migrations during restarts or rollback.
 "${compose[@]}" run --rm --no-deps --entrypoint alembic api upgrade head
 "${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 180
+
+# A healthy old container is not sufficient: verify the *running* images
+# match the approved immutable digest references before promoting the SHA.
+for service in api frontend; do
+  cid="$("${compose[@]}" ps -q "$service")"
+  [[ -n "$cid" ]] || { echo "Missing $service container" >&2; exit 1; }
+  image_ref="$(docker inspect --format '{{.Config.Image}}' "$cid")"
+  if [[ "$service" == api ]]; then expected_image="$api_image"
+  else expected_image="$frontend_image"; fi
+  [[ "$image_ref" == "$expected_image" ]] || {
+    echo "Wrong running $service image; refusing to promote release" >&2; exit 1;
+  }
+done
 
 # Read only the domain from the local env; never echo credentials to logs.
 domain="$(sed -n 's/^SITE_DOMAIN=//p' "$env_file" | tail -n 1)"
@@ -96,8 +117,8 @@ for attempt in $(seq 1 15); do
      curl --proto '=https' --tlsv1.2 -fsS --max-time 10 \
        "https://$domain/api/v1/catalog/institutions" >/dev/null 2>&1 &&
      "${compose[@]}" exec -T api python -c \
-       'import json,urllib.request; body=json.load(urllib.request.urlopen("http://localhost:8000/api/v1/health/database",timeout=10)); assert body["database"]=="ok" and body["migration"]' \
-       >/dev/null 2>&1; then
+       'import json,sys,urllib.request; body=json.load(urllib.request.urlopen("http://localhost:8000/api/v1/health/database",timeout=10)); assert body["database"]=="ok" and body["migration"]==sys.argv[1]' \
+       "$expected_revision" >/dev/null 2>&1; then
     healthy=true
     break
   fi

@@ -19,7 +19,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 @pytest.mark.parametrize(
     "name",
-    ["remote_deploy.sh", "remote_rollback.sh", "restore_drill.sh"],
+    ["remote_deploy.sh", "remote_rollback.sh", "restore_drill.sh", "remote_session.sh"],
 )
 def test_release_scripts_are_valid_bash(name: str) -> None:
     subprocess.run(["bash", "-n", str(SCRIPTS / name)], check=True)
@@ -44,6 +44,12 @@ def test_workflow_requires_manual_dispatch_approval_and_opt_in() -> None:
     assert "SCICONNECT_CD_ENABLED" in workflow
     assert "bash -s --" not in workflow
     assert "RELEASE_OK $SHA" in workflow
+    assert "selected-release" in workflow
+    assert "timeout-minutes: 90" in workflow
+    assert "remote_session.sh" in workflow
+    assert "ServerAliveInterval=30" in workflow
+    assert "nohup setsid" in (SCRIPTS / "remote_session.sh").read_text()
+    assert "bash -s --" not in workflow
     assert "github.ref == 'refs/heads/main'" in workflow
     assert "environment: production" in workflow
     assert "python3 scripts/release/verify_release.py" in workflow
@@ -76,6 +82,18 @@ def test_release_never_auto_pulls_mutable_database_or_proxy_tags() -> None:
         assert '"${compose[@]}" up -d --no-build --pull never' in script
         assert "--pull always" not in script
 
+
+
+
+def test_backup_reads_complete_archive_and_smoke_checks_deployed_images() -> None:
+    deploy = (SCRIPTS / "remote_deploy.sh").read_text()
+    rollback = (SCRIPTS / "remote_rollback.sh").read_text()
+    assert "exec -T db pg_restore -f /dev/null" in deploy
+    assert "pg_restore --list" not in deploy.split("exec -T db pg_restore -f /dev/null")[1]
+    assert "body[\"migration\"]==sys.argv[1]" in deploy
+    assert "docker inspect --format '{{.Config.Image}}'" in deploy
+    assert "docker inspect --format '{{.Config.Image}}'" in rollback
+    assert 'docker image inspect "$api_image"' in rollback
 
 
 def test_prod_compose_override_is_valid_when_docker_is_installed() -> None:
