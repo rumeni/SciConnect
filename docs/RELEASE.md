@@ -86,6 +86,8 @@ rad sa serverom. Sam merge u main **nikada** ne pokrece produkcioni deploy.
    sa migracionom revizijom.
 6. Samo ako sve provere prodju snimiti release-state/current-release
    i release-state/previous-release sa SHA i tacnim image digestima.
+   Ponovni build ISTOG commita moze napraviti drugacije digest-e; prethodna
+   poznato-dobra verzija se cuva kad se razlikuje SHA ili bilo koji digest.
    Server-side zapis o pokusaju cuva se u
    ~/SciConnect/release-state/deploy-attempts/RUN_ID-ATTEMPT/
    (release.log, exit-code, worker.pid). Skripta prijavljuje RELEASE_OK

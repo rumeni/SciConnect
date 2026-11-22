@@ -131,9 +131,13 @@ done
 }
 
 if [[ -f "$state/current-release" ]]; then
-  read -r current_sha _ < "$state/current-release"
-  # A repeated deployment of the same SHA must not lose the real rollback target.
-  if [[ "$current_sha" != "$sha" ]]; then
+  read -r current_sha current_api_image current_frontend_image < "$state/current-release"
+  # Same source SHA may rebuild to DIFFERENT digests (mutable base images or
+  # dependency ranges). Keep the old healthy pair as rollback unless the
+  # *complete* release identity -- SHA and both digests -- is unchanged.
+  if [[ "$current_sha" != "$sha" ||
+        "$current_api_image" != "$api_image" ||
+        "$current_frontend_image" != "$frontend_image" ]]; then
     cp -- "$state/current-release" "$state/previous-release"
   fi
 fi

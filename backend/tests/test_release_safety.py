@@ -95,6 +95,11 @@ def test_backup_reads_complete_archive_and_smoke_checks_deployed_images() -> Non
     assert "docker inspect --format '{{.Config.Image}}'" in deploy
     assert "docker inspect --format '{{.Config.Image}}'" in rollback
     assert 'docker image inspect "$api_image"' in rollback
+    # A repeated SHA with different rebuild digests must preserve the
+    # immediately preceding known-good image pair.
+    assert '"$current_sha" != "$sha"' in deploy
+    assert '"$current_api_image" != "$api_image"' in deploy
+    assert '"$current_frontend_image" != "$frontend_image"' in deploy
 
 
 
