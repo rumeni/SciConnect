@@ -13,6 +13,9 @@ digest_regex='^ghcr.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
 [[ "$api_image" =~ $digest_regex && "$frontend_image" =~ $digest_regex ]] || {
   echo "Only immutable GHCR image digests are allowed" >&2; exit 2;
 }
+# No command in this script may drain its source. The script itself is run
+# from disk; also disconnect stdin defensively.
+exec </dev/null
 
 root="$HOME/SciConnect"
 release="$root/releases/$sha"
@@ -92,8 +95,13 @@ done
 }
 
 if [[ -f "$state/current-release" ]]; then
-  cp -- "$state/current-release" "$state/previous-release"
+  read -r current_sha _ < "$state/current-release"
+  # A repeated deployment of the same SHA must not lose the real rollback target.
+  if [[ "$current_sha" != "$sha" ]]; then
+    cp -- "$state/current-release" "$state/previous-release"
+  fi
 fi
 printf '%s %s %s\n' "$sha" "$api_image" "$frontend_image" > "$state/current-release.new"
 mv -- "$state/current-release.new" "$state/current-release"
 echo "Release healthy and recorded: $sha"
+printf 'RELEASE_OK %s\n' "$sha"

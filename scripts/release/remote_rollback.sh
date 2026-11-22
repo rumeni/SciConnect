@@ -22,6 +22,7 @@ read -r sha api_image frontend_image < "$file"
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || exit 2
 digest_regex='^ghcr.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
 [[ "$api_image" =~ $digest_regex && "$frontend_image" =~ $digest_regex ]] || exit 2
+exec </dev/null
 release="$root/releases/$sha"
 [[ -f "$release/compose.prod.yaml" && -f "$release/compose.release.yaml" ]] || {
   echo "Old release bundle missing; cannot roll back" >&2; exit 1;

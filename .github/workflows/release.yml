@@ -65,7 +65,7 @@ jobs:
 
   deploy:
     needs: verify
-    if: ${{ !inputs.dry_run && needs.verify.result == 'success' }}
+    if: ${{ github.ref == 'refs/heads/main' && !inputs.dry_run && needs.verify.result == 'success' }}
     # IMPORTANT: the owner must configure this GitHub Environment with REQUIRED
     # REVIEWERS; the workflow alone cannot create or verify those settings.
     environment: production
@@ -136,13 +136,18 @@ jobs:
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/sciconnect_known_hosts")
           target="$SSH_USER@$SSH_HOST"
           ssh "${ssh_opts[@]}" "$target" "mkdir -p \"\$HOME/SciConnect/releases/$SHA\""
-          tar -cf - compose.prod.yaml compose.release.yaml Caddyfile scripts/release/remote_rollback.sh | \
+          tar -cf - compose.prod.yaml compose.release.yaml Caddyfile \
+            scripts/release/remote_deploy.sh scripts/release/remote_rollback.sh | \
             ssh "${ssh_opts[@]}" "$target" "tar -xf - -C \"\$HOME/SciConnect/releases/$SHA\""
           printf '%s' "$GHCR_READ_TOKEN" | \
             ssh "${ssh_opts[@]}" "$target" \
               "docker login ghcr.io --username '$GHCR_READ_USERNAME' --password-stdin >/dev/null"
-          ssh "${ssh_opts[@]}" "$target" bash -s -- "$SHA" "$API_IMAGE" "$FRONTEND_IMAGE" \
-            < scripts/release/remote_deploy.sh
+          # Run from a transferred file, never from SSH stdin: docker compose
+          # run/exec can consume stdin and silently truncate a piped script.
+          ssh "${ssh_opts[@]}" "$target" \
+            "bash \"\$HOME/SciConnect/releases/$SHA/scripts/release/remote_deploy.sh\" '$SHA' '$API_IMAGE' '$FRONTEND_IMAGE'" \
+            | tee "$RUNNER_TEMP/sciconnect-release.log"
+          grep -Fx "RELEASE_OK $SHA" "$RUNNER_TEMP/sciconnect-release.log" >/dev/null
       - name: Release identity
         env:
           SHA: ${{ needs.verify.outputs.sha }}

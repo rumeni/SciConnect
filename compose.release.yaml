@@ -3,6 +3,7 @@
 # Normal docker compose development/production builds are unchanged.
 services:
   api:
+    build: !reset null
     image: ${SCICONNECT_API_IMAGE:?approved API image digest required}
     environment:
       # Production migrations run explicitly, after a verified backup and before
@@ -10,4 +11,5 @@ services:
       APP_RUN_MIGRATIONS: "false"
       APP_SEED_ON_STARTUP: "false"
   frontend:
+    build: !reset null
     image: ${SCICONNECT_FRONTEND_IMAGE:?approved frontend image digest required}
