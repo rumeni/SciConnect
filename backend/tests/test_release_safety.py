@@ -190,14 +190,14 @@ def test_status_rechecks_exit_code_if_worker_finishes_during_pid_probe(
     attempt = "321-4"
     folder = tmp_path / "SciConnect" / "release-state" / "deploy-attempts" / attempt
     folder.mkdir(parents=True)
-    (folder / "worker.pid").write_text("99999999\\n")
+    (folder / "worker.pid").write_text("99999999\n")
     bash_env = tmp_path / "bash_env.sh"
     bash_env.write_text(
-        "kill() {\\n"
-        '  printf "0\\\\n" > "$SC_TEST_FOLDER/exit-code"\\n'
-        f'  printf "RELEASE_OK {sha}\\\\n" > "$SC_TEST_FOLDER/release.log"\\n'
-        "  return 1\\n"
-        "}\\n"
+        "kill() {\n"
+        '  printf "0\\n" > "$SC_TEST_FOLDER/exit-code"\n'
+        f'  printf "RELEASE_OK {sha}\\n" > "$SC_TEST_FOLDER/release.log"\n'
+        "  return 1\n"
+        "}\n"
     )
     env = {
         **os.environ,
@@ -221,12 +221,12 @@ def test_logind_killuserprocesses_yes_refuses_release_before_creating_auth(
     release = tmp_path / "SciConnect" / "releases" / sha
     scripts = release / "scripts" / "release"
     scripts.mkdir(parents=True)
-    (scripts / "remote_deploy.sh").write_text("#!/bin/bash\\nexit 0\\n")
-    (release / "compose.release.yaml").write_text("services: {}\\n")
+    (scripts / "remote_deploy.sh").write_text("#!/bin/bash\nexit 0\n")
+    (release / "compose.release.yaml").write_text("services: {}\n")
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     check = fake_bin / "systemd-analyze"
-    check.write_text("#!/bin/sh\\nprintf 'KillUserProcesses=yes\\\\n'\\n")
+    check.write_text("#!/bin/sh\nprintf 'KillUserProcesses=yes\\n'\n")
     check.chmod(0o755)
     env = {
         **os.environ, "HOME": str(tmp_path),
