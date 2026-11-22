@@ -139,6 +139,8 @@ export function Workspace({
   ]);
 
   const refresh = useCallback(async () => {
+    // An older catalog refresh must not replace a search submitted while it loaded.
+    const searchAtStart = latestSearch.current;
     try {
       const [loaded, points] = await Promise.all([loadCatalogs(canEdit), api.mapInstitutions()]);
       setCatalogs(loaded);
@@ -149,8 +151,9 @@ export function Workspace({
       return;
     }
     setDataVersion((count) => count + 1);
-    await runSearch(filters);
-  }, [canEdit, filters, runSearch]);
+    // Refresh the submitted search, not unsubmitted edits in the filter fields.
+    if (latestSearch.current === searchAtStart) await runSearch(applied);
+  }, [applied, canEdit, runSearch]);
 
   useEffect(() => {
     void refresh();
