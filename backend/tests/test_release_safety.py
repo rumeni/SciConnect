@@ -150,7 +150,7 @@ def test_detached_release_survives_launcher_exit_and_cleans_credentials(
     fake_logind = fake_bin / "busctl"
     fake_logind.write_text(
         "#!/bin/sh\n"
-        'case "$4" in\n'
+        'case "$5" in\n'
         '  KillUserProcesses) printf "b false\\n" ;;\n'
         '  KillOnlyUsers) printf "as 0\\n" ;;\n'
         '  *) exit 45 ;;\n'
@@ -246,9 +246,9 @@ def test_logind_rejects_unsafe_running_configuration_before_creating_auth(
     other_value = "as 0" if other == "KillOnlyUsers" else "b false"
     check.write_text(
         "#!/bin/sh\n"
-        f'if [ "$4" = "{property_name}" ]; then\n'
+        f'if [ "$5" = "{property_name}" ]; then\n'
         f"  printf '%s\\n' '{property_value}'\n"
-        f'elif [ "$4" = "{other}" ]; then\n'
+        f'elif [ "$5" = "{other}" ]; then\n'
         f"  printf '%s\\n' '{other_value}'\n"
         "else exit 51; fi\n"
     )
