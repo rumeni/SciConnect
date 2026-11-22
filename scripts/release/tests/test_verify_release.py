@@ -47,6 +47,34 @@ class VerifyReleaseTests(unittest.TestCase):
         self.assertTrue(all(x.kwargs["check"] for x in run.call_args_list))
 
     @patch.object(release.subprocess, "run")
+    def test_selected_image_must_support_external_migration_gate(self, run):
+        from subprocess import CompletedProcess
+
+        run.side_effect = [
+            CompletedProcess([], 0, 'case "${APP_RUN_MIGRATIONS:-true}" in'),
+            CompletedProcess([], 0, 'APP_RUN_MIGRATIONS: "false"'),
+        ]
+        release.check_release_contract(SHA)
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args_list[0].args[0], [
+            "git", "show", f"{SHA}:backend/docker-entrypoint.sh",
+        ])
+        self.assertEqual(run.call_args_list[1].args[0], [
+            "git", "show", f"{SHA}:compose.release.yaml",
+        ])
+
+    @patch.object(release.subprocess, "run")
+    def test_old_ci_green_image_without_migration_gate_is_rejected(self, run):
+        from subprocess import CompletedProcess
+
+        run.side_effect = [
+            CompletedProcess([], 0, "alembic upgrade head"),
+            CompletedProcess([], 0, 'APP_RUN_MIGRATIONS: "false"'),
+        ]
+        with self.assertRaisesRegex(ValueError, "predates"):
+            release.check_release_contract(SHA)
+
+    @patch.object(release.subprocess, "run")
     def test_non_ancestor_is_fatal(self, run):
         run.side_effect = subprocess.CalledProcessError(1, "git")
         with self.assertRaises(subprocess.CalledProcessError):
