@@ -112,7 +112,9 @@ def test_admin_institution_list_requires_a_valid_token(
 ) -> None:
     url = "/api/v1/admin/catalog/institutions"
     for headers in ({}, {"Authorization": "Bearer not-the-key"}):
-        assert client.get(url, headers=headers).status_code == 403
+        refused = client.get(url, headers=headers)
+        assert refused.status_code == 401
+        assert refused.headers["WWW-Authenticate"].startswith("Bearer")
 
     # The public catalog stays unchanged, even after the admin endpoint exists.
     public = client.get("/api/v1/catalog/institutions")
@@ -152,3 +154,8 @@ def test_admin_list_tracks_institution_status_changes(
 def test_without_a_configured_key_everyone_is_admin(client: TestClient, records) -> None:
     """Development with no key: the gate is open for reads as it is for writes."""
     assert client.get(f"/api/v1/catalog/institutions/{records['draft']}").status_code == 200
+    response = client.get("/api/v1/admin/catalog/institutions")
+    assert response.status_code == 200
+    assert {item["id"] for item in response.json()} == {
+        records["public"], records["draft"], records["archived"]
+    }

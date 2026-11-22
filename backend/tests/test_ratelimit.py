@@ -239,6 +239,16 @@ class TestThroughTheApp:
         assert client.get("/api/v1/catalog/institutions").status_code == 200
         assert client.get("/api/v1/catalog/institutions").status_code == 429
 
+    def test_readiness_limits_distinct_proxy_clients_separately(
+        self, client: TestClient, limited
+    ) -> None:
+        limited(rate_limit_readiness="1/minute", trusted_proxy_hops=1)
+        first = {"X-Forwarded-For": "198.51.100.20"}
+        second = {"X-Forwarded-For": "203.0.113.42"}
+        assert client.get("/api/v1/health/database", headers=first).status_code == 200
+        assert client.head("/api/v1/health/database", headers=first).status_code == 429
+        assert client.head("/api/v1/health/database", headers=second).status_code == 200
+
     def test_limited_readiness_does_not_run_any_sql(
         self, client: TestClient, limited, db, monkeypatch
     ) -> None:

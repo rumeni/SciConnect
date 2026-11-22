@@ -92,6 +92,8 @@ export function Workspace({
    * results, the error or the loading flag.
    */
   const latestSearch = useRef(0);
+  // Prevent paging old results while a post-write catalog refresh is in flight.
+  const refreshingCatalog = useRef(false);
 
   const runSearch = useCallback(async (nextFilters: Filters, offset = 0) => {
     const ticket = ++latestSearch.current;
@@ -141,19 +143,24 @@ export function Workspace({
   const refresh = useCallback(async () => {
     // An older catalog refresh must not replace a search submitted while it loaded.
     const searchAtStart = latestSearch.current;
+    refreshingCatalog.current = true;
+    setLoading(true);
     try {
       const [loaded, points] = await Promise.all([loadCatalogs(canEdit), api.mapInstitutions()]);
       setCatalogs(loaded);
       setMapPoints(points);
+      setDataVersion((count) => count + 1);
+      // Refresh the submitted search, not unsubmitted edits in the filter fields.
+      if (latestSearch.current === searchAtStart) await runSearch(applied);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("common.apiUnavailable"));
-      setLoading(false);
-      return;
+      if (latestSearch.current === searchAtStart) {
+        setError(reason instanceof Error ? reason.message : t("common.apiUnavailable"));
+        setLoading(false);
+      }
+    } finally {
+      refreshingCatalog.current = false;
     }
-    setDataVersion((count) => count + 1);
-    // Refresh the submitted search, not unsubmitted edits in the filter fields.
-    if (latestSearch.current === searchAtStart) await runSearch(applied);
-  }, [applied, canEdit, runSearch]);
+  }, [applied, canEdit, runSearch, t]);
 
   useEffect(() => {
     void refresh();
@@ -313,6 +320,7 @@ export function Workspace({
           onFilterChange={updateFilter}
           onSearch={() => void runSearch(filters)}
           onLoadMore={() => {
+            if (refreshingCatalog.current) return;
             const page = nextPageQuery(applied, results);
             if (page) void runSearch(page.filters, page.offset);
           }}
