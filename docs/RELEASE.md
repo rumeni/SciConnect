@@ -110,9 +110,11 @@ stari GHCR digest-i jos dostupni. Potom kao deploy korisnik:
     CONFIRM_DB_COMPATIBLE=yes bash releases/ODGOVARAJUCI-SHA/scripts/release/remote_rollback.sh current
 
 Ili izabrati previous za povratak na pretposlednju potvrdenu verziju.
-Rucno ponovo proveriti javni HTTPS, API, katalog i podatke. Ne upisivati
-novo stanje kao "uspesno" pre zavrsne provere. Ako migracija nije
-kompatibilna, potreban je zaseban plan kontrolisanog povratka baze.
+Rollback skripta proverava javni HTTPS, API, katalog i DB readiness,
+pa tek nakon tih provera oznacava vraceno izdanje kao poslednje dobro
+(dok prethodni digest zadrzava za svesni roll-forward). Operator ipak
+treba dodatno da proveri stvarne podatke i poslovne funkcije u browseru.
+Ako migracija nije kompatibilna, potreban je zaseban plan oporavka baze.
 
 **Prvi prelazak** sa rucno gradjene Docker slike nema sacuvan GHCR digest
 te stare slike. Pre prvog odobrenog release-a sacuvati checkout, postojece
