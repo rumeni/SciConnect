@@ -49,7 +49,9 @@ db_container="$("${compose[@]}" ps -q db)"
 
 # Refuse a backup if the local disk cannot hold a conservative estimate.
 # This fails CLOSED rather than consuming Postgres' free disk while dumping.
-db_bytes="$("${compose[@]}" exec -T db sh -ec   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT pg_database_size(current_database())"'   | tr -d '\r\n')"
+db_bytes="$("${compose[@]}" exec -T db sh -ec \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT pg_database_size(current_database())"' \
+  | tr -d '\r\n')"
 free_kb="$(df -Pk "$root/backups" | awk 'NR==2 {print $4}')"
 [[ "$db_bytes" =~ ^[0-9]+$ && "$free_kb" =~ ^[0-9]+$ ]] || {
   echo "Could not determine database size or available backup storage" >&2; exit 1;
