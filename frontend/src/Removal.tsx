@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api";
+import { institutionOptionLabel } from "./adminCatalog";
 import { Select } from "./form";
 import { useT, type MessageKey } from "./i18n";
 import type { AnalysisDetailView, Catalogs, EntityKind, EntityRef } from "./types";
@@ -158,11 +159,16 @@ export function RemoveRecordForm({
   const [cascade, setCascade] = useState<{ ref: EntityRef; label: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const institutionName = (institutionId: number) =>
-    catalogs.institutions.find((entry) => entry.id === institutionId)?.name ?? "";
+  const institutionName = (institutionId: number) => {
+    const institution = catalogs.institutions.find((entry) => entry.id === institutionId);
+    return institution ? institutionOptionLabel(institution, t) : "";
+  };
 
   const choices: Record<EntityKind, Choice[]> = {
-    institution: catalogs.institutions.map((item) => ({ id: item.id, label: item.name })),
+    institution: catalogs.institutions.map((item) => ({
+      id: item.id,
+      label: institutionOptionLabel(item, t),
+    })),
     "instrument-type": catalogs.instrumentTypes.map((item) => ({
       id: item.id,
       label: item.name,

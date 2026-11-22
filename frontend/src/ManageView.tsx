@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "./api";
+import { institutionOptionLabel } from "./adminCatalog";
 import { CreateForm, Input, Select } from "./form";
 import { useT, type MessageKey, type Translate } from "./i18n";
 import { CurrentConnections, RemoveRecordForm } from "./Removal";
@@ -271,7 +272,7 @@ function ResearcherForm({
       >
         {catalogs.institutions.map((item) => (
           <option key={item.id} value={item.id}>
-            {item.name}
+            {institutionOptionLabel(item, t)}
           </option>
         ))}
       </Select>
@@ -348,7 +349,7 @@ function InstrumentForm({
       >
         {catalogs.institutions.map((item) => (
           <option key={item.id} value={item.id}>
-            {item.name}
+            {institutionOptionLabel(item, t)}
           </option>
         ))}
       </Select>
@@ -431,7 +432,7 @@ function AnalysisForm({ catalogs, onChanged }: { catalogs: Catalogs; onChanged: 
       >
         {catalogs.institutions.map((item) => (
           <option key={item.id} value={item.id}>
-            {item.name}
+            {institutionOptionLabel(item, t)}
           </option>
         ))}
       </Select>
@@ -505,7 +506,9 @@ function ConnectionForms({
     const institution = catalogs.institutions.find((entry) => entry.id === item.institution_id);
     const type = catalogs.analysisTypes.find((entry) => entry.id === item.analysis_type_id);
     return `${
-      institution?.name ?? t("connect.unnamedInstitution", { id: item.institution_id })
+      institution
+        ? institutionOptionLabel(institution, t)
+        : t("connect.unnamedInstitution", { id: item.institution_id })
     } — ${
       item.public_name || type?.name || t("connect.unnamedAnalysis", { id: item.id })
     }`;

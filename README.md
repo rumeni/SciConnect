@@ -105,11 +105,16 @@ as `GET`, returning `200` when reachable or `503` when unreachable, with no
 response body. A reachable but unmigrated database still returns `200`;
 use `GET` to inspect the migration and institution fields.
 
-For UptimeRobot HTTP / website monitoring, use the deployed backend URL plus
-`/api/v1/health/database`, keep the default `HEAD` method, select a five-minute
-interval, and enable email notifications. Deploy the backend with HEAD support
-before enabling the monitor. Monitor the frontend URL separately to detect
-frontend outages as well.
+For public uptime monitoring, prefer `HEAD /api/v1/health`: this cheap liveness
+endpoint is exempt from rate limiting. Optionally add a separate database
+readiness monitor on `HEAD /api/v1/health/database` at a five-minute interval
+to detect database outages. It is limited per client IP by
+`APP_RATE_LIMIT_READINESS` (default `30/minute`), with GET and HEAD sharing
+the same budget. `429` and `Retry-After` indicate exhausted request budget,
+**not** a database outage; `503` signals a database failure. Adjust the
+readiness budget to suit your monitoring schedule, and ensure
+`APP_TRUSTED_PROXY_HOPS` matches the actual proxy/CDN chain, otherwise clients
+may share a rate-limit identity. Monitor the frontend separately as well.
 
 ## Hosting
 

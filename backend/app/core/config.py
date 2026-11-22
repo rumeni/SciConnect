@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # proxy is scarcest: it spends someone else's quota on every call.
     rate_limit_enabled: bool = True
     rate_limit_read: str = "120/minute"
+    # Readiness runs SQL and has a separate budget from routine reads.
+    rate_limit_readiness: str = "30/minute"
     rate_limit_write: str = "20/minute"
     rate_limit_geocode: str = "10/minute"
     # Checking an admin key. Each attempt is a guess at the secret, so this is

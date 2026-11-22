@@ -26,6 +26,12 @@ class InstitutionSummary(ORMModel):
     country: str
 
 
+class AdminInstitutionSummary(InstitutionSummary):
+    """Admin-only listing includes publication status for safe selection."""
+
+    status: Literal["draft", "active", "archived"]
+
+
 class InstrumentMatch(BaseModel):
     id: int
     instrument_type_id: int

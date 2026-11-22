@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import request_is_admin
 from app.modules.catalog import details, lookup, service
@@ -20,6 +21,7 @@ from app.modules.catalog.models import (
     Researcher,
 )
 from app.modules.catalog.schemas import (
+    AdminInstitutionSummary,
     AnalysisDetailView,
     AnalysisInstrumentLinkCreate,
     AnalysisResearcherLinkCreate,
@@ -113,6 +115,18 @@ def list_institutions(db: DbSession) -> list[Institution]:
         .order_by(Institution.name)
     )
     return list(db.scalars(query))
+
+
+@router.get("/admin/catalog/institutions", response_model=list[AdminInstitutionSummary])
+def list_admin_institutions(db: DbSession, guest: Guest) -> list[Institution]:
+    """All institutions for admin dropdowns; never expose drafts to guests."""
+    if guest:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "A valid admin token is required",
+            headers={"WWW-Authenticate": f'Bearer realm="{settings.app_name}"'},
+        )
+    return list(db.scalars(select(Institution).order_by(Institution.name)))
 
 
 def selected_filters(

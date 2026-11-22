@@ -8,6 +8,7 @@ import { EntitySearch } from "./EntitySearch";
 import { LocationPrompt } from "./LocationPrompt";
 import { ManageView } from "./ManageView";
 import { NearbyView } from "./NearbyView";
+import { mergeSearchPage, nextPageQuery } from "./searchPagination";
 import type { Role } from "./session";
 import { emptyFilters, SearchView, type Filters } from "./SearchView";
 import {
@@ -84,6 +85,9 @@ export function Workspace({
   // Bumped whenever a write lands, so every derived list is recomputed and
   // not just the ones that happen to depend on the filters.
   const [dataVersion, setDataVersion] = useState(0);
+  // Keep Load more visually disabled even when a newer user search completes
+  // before a catalog refresh does.
+  const [refreshing, setRefreshing] = useState(false);
 
   /**
    * Searches resolve out of order: change a filter, or press Clear, and a slow
@@ -91,9 +95,16 @@ export function Workspace({
    * results, the error or the loading flag.
    */
   const latestSearch = useRef(0);
+  // Tracks only the newest request; obsolete requests must not clear this flag.
+  const searchInFlight = useRef(false);
+  // Only the newest overlapping catalog refresh may update data or clear the gate.
+  const latestRefresh = useRef(0);
+  // Prevent paging old results while a post-write catalog refresh is in flight.
+  const refreshingCatalog = useRef(false);
 
   const runSearch = useCallback(async (nextFilters: Filters, offset = 0) => {
     const ticket = ++latestSearch.current;
+    searchInFlight.current = true;
     setLoading(true);
     setError("");
     try {
@@ -102,15 +113,16 @@ export function Workspace({
       if (!offset) setApplied(nextFilters);
       // A later page extends the list; a new search replaces it.
       setResults((shown) =>
-        offset && shown
-          ? { ...answer, items: [...shown.items, ...answer.items] }
-          : answer,
+        ticket === latestSearch.current ? mergeSearchPage(shown, answer, offset) : shown,
       );
     } catch (reason) {
       if (ticket !== latestSearch.current) return;
       setError(reason instanceof Error ? reason.message : t("common.searchFailed"));
     } finally {
-      if (ticket === latestSearch.current) setLoading(false);
+      if (ticket === latestSearch.current) {
+        searchInFlight.current = false;
+        setLoading(false);
+      }
     }
   }, [t]);
 
@@ -140,18 +152,37 @@ export function Workspace({
   ]);
 
   const refresh = useCallback(async () => {
+    const refreshTicket = ++latestRefresh.current;
+    // An older catalog refresh must not replace a search submitted while it loaded.
+    const searchAtStart = latestSearch.current;
+    refreshingCatalog.current = true;
+    setRefreshing(true);
+    setLoading(true);
     try {
-      const [loaded, points] = await Promise.all([loadCatalogs(), api.mapInstitutions()]);
+      const [loaded, points] = await Promise.all([loadCatalogs(canEdit), api.mapInstitutions()]);
+      // A later write started another refresh: ignore this older snapshot.
+      if (refreshTicket !== latestRefresh.current) return;
       setCatalogs(loaded);
       setMapPoints(points);
+      setDataVersion((count) => count + 1);
+      // Refresh the submitted search, not unsubmitted edits in the filter fields.
+      if (latestSearch.current === searchAtStart) await runSearch(applied);
     } catch (reason) {
+      if (refreshTicket !== latestRefresh.current) return;
+      // Catalog failures must remain visible even if a newer search started.
       setError(reason instanceof Error ? reason.message : t("common.apiUnavailable"));
-      setLoading(false);
-      return;
+      // An earlier refresh may still be searching. It owns the loading flag
+      // until its request settles; otherwise paging could append to stale data.
+      if (latestSearch.current === searchAtStart && !searchInFlight.current) {
+        setLoading(false);
+      }
+    } finally {
+      if (refreshTicket === latestRefresh.current) {
+        refreshingCatalog.current = false;
+        setRefreshing(false);
+      }
     }
-    setDataVersion((count) => count + 1);
-    await runSearch(filters);
-  }, [filters, runSearch]);
+  }, [applied, canEdit, runSearch, t]);
 
   useEffect(() => {
     void refresh();
@@ -310,14 +341,18 @@ export function Workspace({
           filters={filters}
           onFilterChange={updateFilter}
           onSearch={() => void runSearch(filters)}
-          onLoadMore={() => void runSearch(filters, results?.items.length ?? 0)}
+          onLoadMore={() => {
+            if (refreshingCatalog.current || searchInFlight.current) return;
+            const page = nextPageQuery(applied, results);
+            if (page) void runSearch(page.filters, page.offset);
+          }}
           onClear={clear}
           applied={applied}
           onRemoveFilter={removeFilter}
           filterLabel={filterLabel}
           onOpen={openDetail}
           results={results}
-          loading={loading}
+          loading={loading || refreshing}
           error={error}
         />
       ) : view === "nearby" ? (

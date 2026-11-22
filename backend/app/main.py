@@ -26,7 +26,13 @@ logger = logging.getLogger(__name__)
 # Read the configured limits once, at import, so a malformed value stops the
 # process here with a clear message instead of on the first request that would
 # have been limited.
-for _name in ("rate_limit_read", "rate_limit_write", "rate_limit_geocode", "rate_limit_auth"):
+for _name in (
+    "rate_limit_read",
+    "rate_limit_readiness",
+    "rate_limit_write",
+    "rate_limit_geocode",
+    "rate_limit_auth",
+):
     parse_limit(getattr(settings, _name))
 
 @asynccontextmanager
@@ -45,8 +51,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         )
     if settings.rate_limit_enabled:
         logger.info(
-            "Rate limits: reads %s, writes %s, geocoding %s, trusting %d proxy hop(s)",
+            "Rate limits: reads %s, DB readiness %s, writes %s, "
+            "geocoding %s, trusting %d proxy hop(s)",
             settings.rate_limit_read,
+            settings.rate_limit_readiness,
             settings.rate_limit_write,
             settings.rate_limit_geocode,
             settings.trusted_proxy_hops,
