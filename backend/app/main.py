@@ -51,7 +51,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         )
     if settings.rate_limit_enabled:
         logger.info(
-            "Rate limits: reads %s, DB readiness %s, writes %s, geocoding %s, trusting %d proxy hop(s)",
+            "Rate limits: reads %s, DB readiness %s, writes %s, "
+            "geocoding %s, trusting %d proxy hop(s)",
             settings.rate_limit_read,
             settings.rate_limit_readiness,
             settings.rate_limit_write,
