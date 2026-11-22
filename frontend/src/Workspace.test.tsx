@@ -153,8 +153,9 @@ function seedState({
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 async function flush() {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -233,7 +234,7 @@ describe("Workspace interactions", () => {
     const props = workspace();
     hookState.effects[1]();
     props.onSearch();
-    catalogs.resolve(Promise.reject(new Error("Catalog unavailable")) as never);
+    catalogs.reject(new Error("Catalog unavailable"));
     await flush();
 
     expect(hookState.values[7]).toBe("Catalog unavailable");
