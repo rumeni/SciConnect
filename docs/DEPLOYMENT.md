@@ -166,6 +166,12 @@ Spoljne provere zaglavlja i TLS-a:
 
 ---
 
+## Kontrolisani release i oporavak
+
+Za rucno odobravanje, verifikaciju CI SHA, pinovane Docker slike, backup
+pre migracije i operator rollback pogledaj [RELEASE.md](RELEASE.md).
+Novi workflow radi samo na rucni poziv; merge ne deployuje sajt.
+
 ## Održavanje
 
 **Nova verzija:**
@@ -187,10 +193,11 @@ Stari ključ prestaje da važi odmah, svuda. Admin koji je bio prijavljen biva o
 ```
 Tako se čuva poslednjih 7 dana. Povremeno prebaci neku kopiju van servera.
 
-**Vraćanje iz kopije:**
-```bash
-gunzip -c backup-Mon.sql.gz | docker compose -f compose.prod.yaml --env-file .env.production exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
-```
+**Vraćanje iz kopije:** ne vracaj dump direktno u bazu koja vec sadrzi
+podatke: to moze da izazove konflikt, duplikate ili parcijalan restore.
+Za bezbednu vezbu na izolovanom PostgreSQL-u i plan kontrolisanog vracanja
+pogledaj [RELEASE.md](RELEASE.md). Stare SQL.GZ kopije najpre testiraj na
+praznoj staging bazi, ne na produkciji.
 
 ---
 
