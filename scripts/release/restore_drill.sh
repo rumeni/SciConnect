@@ -16,7 +16,9 @@ for attempt in $(seq 1 30); do
   # The official image also runs a short-lived initialization server.
   # Wait until PID 1 has exec'd the FINAL postgres process before restoring.
   # This works with --network none, where TCP loopback may not be configured.
-  if docker exec "$container" sh -ec     '[ "$(cat /proc/1/comm)" = postgres ] && pg_isready -U postgres'     >/dev/null 2>&1; then
+  if docker exec "$container" sh -ec \
+      '[ "$(cat /proc/1/comm)" = postgres ] && pg_isready -U postgres' \
+      >/dev/null 2>&1; then
     ready=true
     break
   fi
