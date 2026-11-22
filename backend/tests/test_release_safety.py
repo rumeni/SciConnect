@@ -143,7 +143,7 @@ def test_detached_release_survives_launcher_exit_and_cleans_credentials(
         "test \"$1\" = login || exit 42\n"
         "test -n \"$DOCKER_CONFIG\" || exit 43\n"
         "cat >/dev/null\n"
-        "printf '{\"auths\":{\"ghcr.io\":{\"auth\":\"b3BlcmF0b3I6dG9rZW4=\"}}}\\n' " 
+        "printf '{\"auths\":{\"ghcr.io\":{\"auth\":\"b3BlcmF0b3I6dG9rZW4=\"}}}\\n' "
         '> "$DOCKER_CONFIG/config.json"\n'
     )
     fake_docker.chmod(0o755)
