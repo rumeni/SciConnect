@@ -136,7 +136,7 @@ jobs:
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/sciconnect_known_hosts")
           target="$SSH_USER@$SSH_HOST"
           ssh "${ssh_opts[@]}" "$target" "mkdir -p \"\\$HOME/SciConnect/releases/$SHA\""
-          tar -cf - compose.prod.yaml compose.release.yaml Caddyfile | \
+          tar -cf - compose.prod.yaml compose.release.yaml Caddyfile scripts/release/remote_rollback.sh | \
             ssh "${ssh_opts[@]}" "$target" "tar -xf - -C \"\\$HOME/SciConnect/releases/$SHA\""
           printf '%s' "$GHCR_READ_TOKEN" | \
             ssh "${ssh_opts[@]}" "$target" \
