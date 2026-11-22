@@ -33,9 +33,36 @@ compose=(docker compose -p sciconnect --project-directory "$release" \
   --env-file "$root/.env.production")
 "${compose[@]}" config --quiet
 "${compose[@]}" up -d --no-build --pull always --wait --wait-timeout 180
-"${compose[@]}" exec -T api python -c \
-  'import json,urllib.request; body=json.load(urllib.request.urlopen("http://localhost:8000/api/v1/health/database",timeout=10)); assert body["database"]=="ok" and body["migration"]'
-echo "App rollback started: $sha. Verify public HTTPS and data before updating release state."
+# The app may boot but be unhealthy at its public HTTPS entrypoint.
+# Promote rollback state only after public/API smoke and DB readiness.
+domain="$(sed -n 's/^SITE_DOMAIN=//p' "$root/.env.production" | tail -n 1)"
+domain="${domain%\"}"
+domain="${domain#\"}"
+[[ "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] || exit 1
+ready=false
+for attempt in $(seq 1 12); do
+  if curl --proto '=https' --tlsv1.2 -fsS --max-time 10 \
+      "https://$domain/" >/dev/null 2>&1 &&
+     curl --proto '=https' --tlsv1.2 -fsS --max-time 10 \
+       "https://$domain/api/v1/health" >/dev/null 2>&1 &&
+     curl --proto '=https' --tlsv1.2 -fsS --max-time 10 \
+       "https://$domain/api/v1/catalog/institutions" >/dev/null 2>&1 &&
+     "${compose[@]}" exec -T api python -c \
+       'import json,urllib.request; body=json.load(urllib.request.urlopen("http://localhost:8000/api/v1/health/database",timeout=10)); assert body["database"]=="ok" and body["migration"]' \
+       >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  sleep 5
+done
+[[ "$ready" == "true" ]] || { echo "Rollback smoke failed; release state unchanged" >&2; exit 1; }
 
-# Promote only after the operator has confirmed external checks. This keeps
-# current-release as the last verified release if a rollback partly fails.
+if [[ "$choice" == "previous" ]]; then
+  # Swap previous/current only after a healthy rollback. Retain the former
+  # current SHA as a deliberate option for a later roll-forward.
+  cp -- "$state/current-release" "$state/previous-release.new"
+  cp -- "$file" "$state/current-release.new"
+  mv -- "$state/current-release.new" "$state/current-release"
+  mv -- "$state/previous-release.new" "$state/previous-release"
+fi
+echo "Operator rollback healthy and recorded: $sha"
