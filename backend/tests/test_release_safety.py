@@ -253,7 +253,7 @@ def test_logind_rejects_unsafe_running_configuration_before_creating_auth(
     )
     check.chmod(0o755)
     env = {
-        **os.environ, "HOME": str(tmp_path),
+        **os.environ, "HOME": str(tmp_path), "USER": "deploy",
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
     }
     api = "ghcr.io/example/api@sha256:" + "a" * 64
