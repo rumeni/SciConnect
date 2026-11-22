@@ -40,6 +40,27 @@ def check_ancestry(sha: str) -> None:
     )
 
 
+
+def check_release_contract(sha: str) -> None:
+    """Refuse old application images that would auto-migrate on restart.
+
+    A green CI SHA from before the release migration guard is NOT safe to
+    deploy with this workflow, because its image ignores APP_RUN_MIGRATIONS.
+    """
+    entrypoint = subprocess.run(
+        ["git", "show", f"{sha}:backend/docker-entrypoint.sh"],
+        check=True, text=True, capture_output=True,
+    ).stdout
+    overlay = subprocess.run(
+        ["git", "show", f"{sha}:compose.release.yaml"],
+        check=True, text=True, capture_output=True,
+    ).stdout
+    if "APP_RUN_MIGRATIONS:-true" not in entrypoint:
+        raise ValueError("Selected API image predates explicit migration gating")
+    if 'APP_RUN_MIGRATIONS: "false"' not in overlay:
+        raise ValueError("Selected release overlay does not disable startup migrations")
+
+
 def get_ci_runs(repo: str, sha: str, token: str) -> list[dict]:
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
         raise ValueError("Invalid repository name")
@@ -72,6 +93,7 @@ def main() -> int:
         return 1
     try:
         check_ancestry(sha)
+        check_release_contract(sha)
         runs = get_ci_runs(os.environ["GITHUB_REPOSITORY"], sha, os.environ["GH_TOKEN"])
         if not verified_run(runs, sha):
             raise ValueError("No completed successful main push CI run for this exact SHA")
