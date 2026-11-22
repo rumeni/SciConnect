@@ -95,6 +95,8 @@ export function Workspace({
    * results, the error or the loading flag.
    */
   const latestSearch = useRef(0);
+  // Tracks only the newest request; obsolete requests must not clear this flag.
+  const searchInFlight = useRef(false);
   // Only the newest overlapping catalog refresh may update data or clear the gate.
   const latestRefresh = useRef(0);
   // Prevent paging old results while a post-write catalog refresh is in flight.
@@ -102,6 +104,7 @@ export function Workspace({
 
   const runSearch = useCallback(async (nextFilters: Filters, offset = 0) => {
     const ticket = ++latestSearch.current;
+    searchInFlight.current = true;
     setLoading(true);
     setError("");
     try {
@@ -116,7 +119,10 @@ export function Workspace({
       if (ticket !== latestSearch.current) return;
       setError(reason instanceof Error ? reason.message : t("common.searchFailed"));
     } finally {
-      if (ticket === latestSearch.current) setLoading(false);
+      if (ticket === latestSearch.current) {
+        searchInFlight.current = false;
+        setLoading(false);
+      }
     }
   }, [t]);
 
@@ -165,7 +171,11 @@ export function Workspace({
       if (refreshTicket !== latestRefresh.current) return;
       // Catalog failures must remain visible even if a newer search started.
       setError(reason instanceof Error ? reason.message : t("common.apiUnavailable"));
-      if (latestSearch.current === searchAtStart) setLoading(false);
+      // An earlier refresh may still be searching. It owns the loading flag
+      // until its request settles; otherwise paging could append to stale data.
+      if (latestSearch.current === searchAtStart && !searchInFlight.current) {
+        setLoading(false);
+      }
     } finally {
       if (refreshTicket === latestRefresh.current) {
         refreshingCatalog.current = false;
@@ -332,7 +342,7 @@ export function Workspace({
           onFilterChange={updateFilter}
           onSearch={() => void runSearch(filters)}
           onLoadMore={() => {
-            if (refreshingCatalog.current) return;
+            if (refreshingCatalog.current || searchInFlight.current) return;
             const page = nextPageQuery(applied, results);
             if (page) void runSearch(page.filters, page.offset);
           }}
