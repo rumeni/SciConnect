@@ -49,7 +49,13 @@ jobs:
           python3 scripts/release/verify_release.py "$RELEASE_SHA"
           echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
         id: release
-      - name: Check shell syntax, verification tests and Compose overlay
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+          path: selected-release
+          persist-credentials: false
+      - name: Check selected SHA shell syntax, verification tests and Compose overlay
+        working-directory: selected-release
         run: |
           set -euo pipefail
           for script in scripts/release/*.sh; do bash -n "$script"; done
@@ -70,6 +76,7 @@ jobs:
     # REVIEWERS; the workflow alone cannot create or verify those settings.
     environment: production
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: write
@@ -133,21 +140,50 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/sciconnect_key"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/sciconnect_known_hosts"
           ssh_opts=(-i "$RUNNER_TEMP/sciconnect_key" -o BatchMode=yes -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/sciconnect_known_hosts")
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/sciconnect_known_hosts" \
+            -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=10)
           target="$SSH_USER@$SSH_HOST"
           ssh "${ssh_opts[@]}" "$target" "mkdir -p \"\$HOME/SciConnect/releases/$SHA\""
           tar -cf - compose.prod.yaml compose.release.yaml Caddyfile \
-            scripts/release/remote_deploy.sh scripts/release/remote_rollback.sh | \
+            scripts/release/remote_deploy.sh scripts/release/remote_rollback.sh \
+            scripts/release/remote_session.sh | \
             ssh "${ssh_opts[@]}" "$target" "tar -xf - -C \"\$HOME/SciConnect/releases/$SHA\""
+          # Release runs in its own process group on the server, NOT inside
+          # SSH. Losing this runner must never SIGPIPE-kill a migration.
+          attempt_id="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           printf '%s' "$GHCR_READ_TOKEN" | \
             ssh "${ssh_opts[@]}" "$target" \
-              "docker login ghcr.io --username '$GHCR_READ_USERNAME' --password-stdin >/dev/null"
-          # Run from a transferred file, never from SSH stdin: docker compose
-          # run/exec can consume stdin and silently truncate a piped script.
-          ssh "${ssh_opts[@]}" "$target" \
-            "bash \"\$HOME/SciConnect/releases/$SHA/scripts/release/remote_deploy.sh\" '$SHA' '$API_IMAGE' '$FRONTEND_IMAGE'" \
-            | tee "$RUNNER_TEMP/sciconnect-release.log"
-          grep -Fx "RELEASE_OK $SHA" "$RUNNER_TEMP/sciconnect-release.log" >/dev/null
+              "bash \"\$HOME/SciConnect/releases/$SHA/scripts/release/remote_session.sh\" start '$SHA' '$attempt_id' '$API_IMAGE' '$FRONTEND_IMAGE' '$GHCR_READ_USERNAME'" \
+              > "$RUNNER_TEMP/sciconnect-start.log"
+          grep -Fx "RELEASE_STARTED $SHA $attempt_id" \
+            "$RUNNER_TEMP/sciconnect-start.log" >/dev/null
+          done_ok=false
+          for check in $(seq 1 180); do
+            # A temporary SSH outage affects monitoring, not the deployed
+            # process. Poll the server-owned status (not fragile stdout).
+            if status="$(ssh "${ssh_opts[@]}" "$target" \
+                "bash \"\$HOME/SciConnect/releases/$SHA/scripts/release/remote_session.sh\" status '$SHA' '$attempt_id'" 2>/dev/null)"; then
+              case "$status" in
+                "RELEASE_OK $SHA $attempt_id")
+                  done_ok=true
+                  break ;;
+                "RELEASE_FAILED $SHA $attempt_id"|"RELEASE_UNKNOWN $SHA $attempt_id")
+                  echo "::error::$status. Check server release-state/deploy-attempts/$attempt_id/release.log"
+                  exit 1 ;;
+                "RELEASE_RUNNING $SHA $attempt_id")
+                  ;;
+                *)
+                  echo "::error::Unexpected server status: $status"
+                  exit 1 ;;
+              esac
+            fi
+            sleep 10
+          done
+          [[ "$done_ok" == true ]] || {
+            echo "::error::Release not confirmed: inspect server-side status/log. Do not retry blindly."
+            exit 1
+          }
+          echo "RELEASE_OK $SHA"
       - name: Release identity
         env:
           SHA: ${{ needs.verify.outputs.sha }}
