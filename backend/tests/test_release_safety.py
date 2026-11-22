@@ -135,10 +135,19 @@ def test_detached_release_survives_launcher_exit_and_cleans_credentials(
     fake_docker = fake_bin / "docker"
     fake_docker.write_text(
         "#!/bin/sh\n"
+        "if [ \"$1\" = compose ] && [ \"$2\" = version ]; then exit 0; fi\n"
         "test \"$1\" = login || exit 42\n"
-        "cat >/dev/null\n"
+        "test -n \"$DOCKER_CONFIG\" || exit 43\n"
+        "cat > \"$DOCKER_CONFIG/config.json\"\n"
     )
     fake_docker.chmod(0o755)
+    fake_logind = fake_bin / "systemd-analyze"
+    fake_logind.write_text(
+        "#!/bin/sh\n"
+        "test \"$1\" = cat-config || exit 40\n"
+        "printf 'KillUserProcesses=no\\n'\n"
+    )
+    fake_logind.chmod(0o755)
     env = {
         **os.environ, "HOME": str(tmp_path),
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
@@ -171,6 +180,68 @@ def test_detached_release_survives_launcher_exit_and_cleans_credentials(
     assert (attempt_folder / "exit-code").read_text().strip() == str(exit_code)
     assert not (attempt_folder / "docker-auth").exists()
     assert not (tmp_path / ".docker" / "config.json").exists()
+
+
+def test_status_rechecks_exit_code_if_worker_finishes_during_pid_probe(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Reproduce the old TOCTOU race deterministically, without timing guesses."""
+    sha = "a" * 40
+    attempt = "321-4"
+    folder = tmp_path / "SciConnect" / "release-state" / "deploy-attempts" / attempt
+    folder.mkdir(parents=True)
+    (folder / "worker.pid").write_text("99999999\\n")
+    bash_env = tmp_path / "bash_env.sh"
+    bash_env.write_text(
+        "kill() {\\n"
+        '  printf "0\\\\n" > "$SC_TEST_FOLDER/exit-code"\\n'
+        f'  printf "RELEASE_OK {sha}\\\\n" > "$SC_TEST_FOLDER/release.log"\\n'
+        "  return 1\\n"
+        "}\\n"
+    )
+    env = {
+        **os.environ,
+        "HOME": str(tmp_path),
+        "BASH_ENV": str(bash_env),
+        "SC_TEST_FOLDER": str(folder),
+    }
+    result = subprocess.run(
+        ["bash", str(SCRIPTS / "remote_session.sh"), "status", sha, attempt],
+        env=env, capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"RELEASE_OK {sha} {attempt}"
+
+
+def test_logind_killuserprocesses_yes_refuses_release_before_creating_auth(
+    tmp_path: pathlib.Path,
+) -> None:
+    sha = "a" * 40
+    attempt = "453-2"
+    release = tmp_path / "SciConnect" / "releases" / sha
+    scripts = release / "scripts" / "release"
+    scripts.mkdir(parents=True)
+    (scripts / "remote_deploy.sh").write_text("#!/bin/bash\\nexit 0\\n")
+    (release / "compose.release.yaml").write_text("services: {}\\n")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    check = fake_bin / "systemd-analyze"
+    check.write_text("#!/bin/sh\\nprintf 'KillUserProcesses=yes\\\\n'\\n")
+    check.chmod(0o755)
+    env = {
+        **os.environ, "HOME": str(tmp_path),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+    }
+    api = "ghcr.io/example/api@sha256:" + "a" * 64
+    frontend = "ghcr.io/example/frontend@sha256:" + "b" * 64
+    result = subprocess.run(
+        ["bash", str(SCRIPTS / "remote_session.sh"),
+         "start", sha, attempt, api, frontend, "operator"],
+        input="dummy", capture_output=True, text=True, env=env, timeout=10,
+    )
+    assert result.returncode != 0
+    assert "KillUserProcesses=yes" in result.stderr
+    assert not (tmp_path / "SciConnect" / "release-state").exists()
 
 
 def test_prod_compose_override_is_valid_when_docker_is_installed() -> None:
