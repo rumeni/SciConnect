@@ -64,6 +64,16 @@ def test_release_overlay_never_migrates_on_regular_api_restart() -> None:
     assert "APP_RUN_MIGRATIONS:-true" in entrypoint
 
 
+
+def test_release_never_auto_pulls_mutable_database_or_proxy_tags() -> None:
+    for name in ("remote_deploy.sh", "remote_rollback.sh"):
+        script = (SCRIPTS / name).read_text()
+        assert '"${compose[@]}" pull api frontend' in script
+        assert '"${compose[@]}" up -d --no-build --pull never' in script
+        assert "--pull always" not in script
+
+
+
 def test_prod_compose_override_is_valid_when_docker_is_installed() -> None:
     if not shutil.which("docker"):
         pytest.skip("Docker is not installed in this test environment")
