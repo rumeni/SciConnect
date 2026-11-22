@@ -5,7 +5,13 @@
 # an existing volume changes nothing.
 set -e
 
-alembic upgrade head
+# Manual Compose starts still migrate by default. In digest-pinned releases
+# the deploy workflow runs a one-off migration after verifying a DB backup.
+case "${APP_RUN_MIGRATIONS:-true}" in
+  true) alembic upgrade head ;;
+  false) echo "Migrations handled by the approved release workflow" ;;
+  *) echo "APP_RUN_MIGRATIONS must be true or false" >&2; exit 1 ;;
+esac
 
 if [ "${APP_SEED_ON_STARTUP:-false}" = "true" ]; then
   python -m app.seed
