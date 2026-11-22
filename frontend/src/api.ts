@@ -1,6 +1,7 @@
 import type {
   Catalogs,
   CatalogItem,
+  AdminInstitution,
   CreatedInstitution,
   DeleteAck,
   EntityDetail,
@@ -106,8 +107,8 @@ function asQuery(filters: Record<string, string>): URLSearchParams {
 /**
  * The header that proves this browser may change the catalog.
  *
- * Writes carry it, and so do detail views, which show draft and archived
- * records only to an admin. Other reads are public and go without it.
+ * Writes carry it, as do admin catalog and detail reads, which can reveal
+ * draft and archived records. Public catalog reads go without it.
  *
  * Sent as `Authorization: Bearer` rather than a custom header: the proxy's
  * access log redacts `Authorization` by default, so the key never lands in it.
@@ -149,6 +150,10 @@ export const api = {
   },
 
   institutions: () => request<Institution[]>("/api/v1/catalog/institutions"),
+  adminInstitutions: () =>
+    request<AdminInstitution[]>("/api/v1/admin/catalog/institutions", {
+      headers: adminHeaders(),
+    }),
   instrumentTypes: () => request<CatalogItem[]>("/api/v1/catalog/instrument-types"),
   analysisTypes: () => request<CatalogItem[]>("/api/v1/catalog/analysis-types"),
   microorganisms: () => request<Microorganism[]>("/api/v1/catalog/microorganisms"),
@@ -228,7 +233,7 @@ const DETAIL_PATHS: Record<EntityKind, string> = {
   "analysis-type": "/catalog/analysis-types",
 };
 
-export async function loadCatalogs(): Promise<Catalogs> {
+export async function loadCatalogs(includeHidden = false): Promise<Catalogs> {
   const [
     institutions,
     instrumentTypes,
@@ -238,7 +243,7 @@ export async function loadCatalogs(): Promise<Catalogs> {
     institutionInstruments,
     institutionAnalyses,
   ] = await Promise.all([
-    api.institutions(),
+    includeHidden ? api.adminInstitutions() : api.institutions(),
     api.instrumentTypes(),
     api.analysisTypes(),
     api.microorganisms(),

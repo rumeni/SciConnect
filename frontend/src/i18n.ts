@@ -433,6 +433,8 @@ const en = {
   "manage.pick.organism": "Select a target organism",
   "manage.pick.researcher": "Select a researcher",
 
+  "status.active": "active",
+  "status.draft": "draft",
   "status.operational": "operational",
   "status.maintenance": "maintenance",
   "status.unavailable": "unavailable",
@@ -907,6 +909,8 @@ const sr: Record<MessageKey, string> = {
   "manage.pick.organism": "Izaberite ciljni organizam",
   "manage.pick.researcher": "Izaberite istraživača",
 
+  "status.active": "aktivno",
+  "status.draft": "u pripremi",
   "status.operational": "u funkciji",
   "status.maintenance": "na održavanju",
   "status.unavailable": "nedostupno",

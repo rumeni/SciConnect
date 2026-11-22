@@ -20,6 +20,7 @@ from app.modules.catalog.models import (
     Researcher,
 )
 from app.modules.catalog.schemas import (
+    AdminInstitutionSummary,
     AnalysisDetailView,
     AnalysisInstrumentLinkCreate,
     AnalysisResearcherLinkCreate,
@@ -113,6 +114,14 @@ def list_institutions(db: DbSession) -> list[Institution]:
         .order_by(Institution.name)
     )
     return list(db.scalars(query))
+
+
+@router.get("/admin/catalog/institutions", response_model=list[AdminInstitutionSummary])
+def list_admin_institutions(db: DbSession, guest: Guest) -> list[Institution]:
+    """All institutions for admin dropdowns; never expose drafts to guests."""
+    if guest:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
+    return list(db.scalars(select(Institution).order_by(Institution.name)))
 
 
 def selected_filters(

@@ -23,7 +23,14 @@ def records(db: Session) -> dict[str, int]:
         status="draft",
         contact_email="draft@example.org",
     )
-    db.add_all([public, draft])
+    archived = Institution(
+        name="Archived Institute",
+        slug="archived",
+        city="Nis",
+        country="Serbia",
+        status="archived",
+    )
+    db.add_all([public, draft, archived])
     db.flush()
     archived_person = Researcher(
         institution_id=public.id,
@@ -39,6 +46,7 @@ def records(db: Session) -> dict[str, int]:
     return {
         "public": public.id,
         "draft": draft.id,
+        "archived": archived.id,
         "archived_person": archived_person.id,
         "draft_person": draft_person.id,
     }
@@ -46,6 +54,7 @@ def records(db: Session) -> dict[str, int]:
 
 HIDDEN = [
     ("/catalog/institutions/{}", "draft"),
+    ("/catalog/institutions/{}", "archived"),
     ("/catalog/researchers/{}", "archived_person"),
     ("/catalog/researchers/{}", "draft_person"),
 ]
@@ -96,6 +105,48 @@ def test_search_shows_a_guest_only_what_they_could_open(
 
     assert guest == {"Open Institute"}
     assert {"Draft Institute", "Archived Person", "Drafted Person"} <= admin
+
+
+def test_admin_institution_list_requires_a_valid_token(
+    client: TestClient, admin_token: str, records
+) -> None:
+    url = "/api/v1/admin/catalog/institutions"
+    for headers in ({}, {"Authorization": "Bearer not-the-key"}):
+        assert client.get(url, headers=headers).status_code == 403
+
+    # The public catalog stays unchanged, even after the admin endpoint exists.
+    public = client.get("/api/v1/catalog/institutions")
+    assert public.status_code == 200
+    assert {item["id"] for item in public.json()} == {records["public"]}
+
+    expected = {
+        records["public"]: "active",
+        records["draft"]: "draft",
+        records["archived"]: "archived",
+    }
+    for headers in (
+        {ADMIN_TOKEN_HEADER: admin_token},
+        {"Authorization": f"Bearer {admin_token}"},
+    ):
+        response = client.get(url, headers=headers)
+        assert response.status_code == 200
+        assert {item["id"]: item["status"] for item in response.json()} == expected
+
+
+def test_admin_list_tracks_institution_status_changes(
+    client: TestClient, admin_token: str, records, db: Session
+) -> None:
+    db.get(Institution, records["draft"]).status = "active"
+    db.get(Institution, records["public"]).status = "archived"
+    db.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    admin = client.get("/api/v1/admin/catalog/institutions", headers=headers)
+    public = client.get("/api/v1/catalog/institutions")
+
+    assert admin.status_code == 200
+    assert {item["status"] for item in admin.json()} == {"active", "archived"}
+    assert {item["id"] for item in public.json()} == {records["draft"]}
 
 
 def test_without_a_configured_key_everyone_is_admin(client: TestClient, records) -> None:

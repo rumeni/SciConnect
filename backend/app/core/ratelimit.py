@@ -41,10 +41,9 @@ PERIOD_SECONDS = {
     "d": 86400,
 }
 
-# Liveness and readiness are polled by uptime monitors on a fixed schedule from
-# a handful of addresses; counting them would turn ordinary monitoring into a
-# refusal and hide a real outage behind a 429.
-EXEMPT_PATHS = frozenset({"/api/v1/health", "/api/v1/health/database"})
+# Liveness does no database work and remains exempt; database readiness has
+# its own per-client budget so anonymous callers cannot run unlimited SQL probes.
+EXEMPT_PATHS = frozenset({"/api/v1/health"})
 
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 READ_METHODS = frozenset({"GET", "HEAD"})
@@ -208,6 +207,11 @@ class RateLimitMiddleware:
         # would surface as an opaque CORS failure rather than a 429.
         if request.method == "OPTIONS":
             return None
+
+        if path == "/api/v1/health/database":
+            if request.method in READ_METHODS:
+                return "readiness", parse_limit(config.rate_limit_readiness)
+            return "auth", parse_limit(config.rate_limit_auth)
 
         if path == AUTH_CHECK_PATH:
             return "auth", parse_limit(config.rate_limit_auth)

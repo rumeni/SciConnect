@@ -211,12 +211,45 @@ class TestThroughTheApp:
         assert client.get("/api/v1/catalog/institutions").status_code == 200
 
     def test_health_checks_are_never_limited(self, client: TestClient, limited) -> None:
-        """An uptime monitor polling on a schedule must not be mistaken for a
-        flood, or an outage would be hidden behind a 429."""
-        limited(rate_limit_read="1/minute")
+        """Cheap liveness stays available even when database readiness is limited."""
+        limited(rate_limit_read="1/minute", rate_limit_readiness="1/minute")
 
         for _ in range(10):
             assert client.get("/api/v1/health").status_code == 200
+            assert client.head("/api/v1/health").status_code == 200
+
+    def test_readiness_get_and_head_share_their_own_budget(
+        self, client: TestClient, limited
+    ) -> None:
+        limited(rate_limit_read="1/minute", rate_limit_readiness="2/minute")
+
+        get = client.get("/api/v1/health/database")
+        head = client.head("/api/v1/health/database")
+        refused = client.get("/api/v1/health/database")
+
+        assert get.status_code == 200
+        assert head.status_code == 200
+        assert head.content == b""
+        assert get.headers["RateLimit-Policy"] == "2;w=60"
+        assert refused.status_code == 429
+        assert refused.headers["RateLimit-Limit"] == "2"
+        assert int(refused.headers["Retry-After"]) >= 1
+        assert client.get("/api/v1/health").status_code == 200
+        # Readiness does not consume normal catalog read capacity.
+        assert client.get("/api/v1/catalog/institutions").status_code == 200
+        assert client.get("/api/v1/catalog/institutions").status_code == 429
+
+    def test_limited_readiness_does_not_run_any_sql(
+        self, client: TestClient, limited, db, monkeypatch
+    ) -> None:
+        limited(rate_limit_readiness="1/minute")
+        assert client.get("/api/v1/health/database").status_code == 200
+
+        def unexpected_query(*_args, **_kwargs):
+            pytest.fail("Rejected readiness requests must not query the database")
+
+        monkeypatch.setattr(db, "execute", unexpected_query)
+        assert client.head("/api/v1/health/database").status_code == 429
 
     def test_a_served_reply_names_the_budget(self, client: TestClient, limited) -> None:
         limited(rate_limit_read="42/minute")

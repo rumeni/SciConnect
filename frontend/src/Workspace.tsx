@@ -8,6 +8,7 @@ import { EntitySearch } from "./EntitySearch";
 import { LocationPrompt } from "./LocationPrompt";
 import { ManageView } from "./ManageView";
 import { NearbyView } from "./NearbyView";
+import { mergeSearchPage, nextPageQuery } from "./searchPagination";
 import type { Role } from "./session";
 import { emptyFilters, SearchView, type Filters } from "./SearchView";
 import {
@@ -102,9 +103,7 @@ export function Workspace({
       if (!offset) setApplied(nextFilters);
       // A later page extends the list; a new search replaces it.
       setResults((shown) =>
-        offset && shown
-          ? { ...answer, items: [...shown.items, ...answer.items] }
-          : answer,
+        ticket === latestSearch.current ? mergeSearchPage(shown, answer, offset) : shown,
       );
     } catch (reason) {
       if (ticket !== latestSearch.current) return;
@@ -141,7 +140,7 @@ export function Workspace({
 
   const refresh = useCallback(async () => {
     try {
-      const [loaded, points] = await Promise.all([loadCatalogs(), api.mapInstitutions()]);
+      const [loaded, points] = await Promise.all([loadCatalogs(canEdit), api.mapInstitutions()]);
       setCatalogs(loaded);
       setMapPoints(points);
     } catch (reason) {
@@ -151,7 +150,7 @@ export function Workspace({
     }
     setDataVersion((count) => count + 1);
     await runSearch(filters);
-  }, [filters, runSearch]);
+  }, [canEdit, filters, runSearch]);
 
   useEffect(() => {
     void refresh();
@@ -310,7 +309,10 @@ export function Workspace({
           filters={filters}
           onFilterChange={updateFilter}
           onSearch={() => void runSearch(filters)}
-          onLoadMore={() => void runSearch(filters, results?.items.length ?? 0)}
+          onLoadMore={() => {
+            const page = nextPageQuery(applied, results);
+            if (page) void runSearch(page.filters, page.offset);
+          }}
           onClear={clear}
           applied={applied}
           onRemoveFilter={removeFilter}

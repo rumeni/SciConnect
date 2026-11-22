@@ -9,6 +9,12 @@ export type Institution = {
   slug: string;
   city: string;
   country: string;
+  /** Included for admin selector records; public search summaries omit it. */
+  status?: "draft" | "active" | "archived";
+};
+
+export type AdminInstitution = Institution & {
+  status: "draft" | "active" | "archived";
 };
 
 /** What the create endpoint answers: the summary plus the derived position. */
