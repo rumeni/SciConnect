@@ -46,10 +46,15 @@ def test_workflow_requires_manual_dispatch_approval_and_opt_in() -> None:
     assert "bash -s --" not in workflow
     assert "RELEASE_OK $SHA" in workflow
     assert "selected-release" in workflow
-    assert "timeout-minutes: 90" in workflow
+    assert "timeout-minutes: 120" in workflow
+    assert "SECONDS + 85 * 60" in workflow
     assert "remote_session.sh" in workflow
     assert "ServerAliveInterval=30" in workflow
-    assert "nohup setsid" in (SCRIPTS / "remote_session.sh").read_text()
+    session = (SCRIPTS / "remote_session.sh").read_text()
+    assert "nohup setsid" in session
+    assert "check_logind_policy" in session
+    assert "elif report_finished" in session
+    assert 'ln -s "$HOME/.docker/cli-plugins"' in session
     assert "bash -s --" not in workflow
     assert "github.ref == 'refs/heads/main'" in workflow
     assert "environment: production" in workflow

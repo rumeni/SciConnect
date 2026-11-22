@@ -76,7 +76,7 @@ jobs:
     # REVIEWERS; the workflow alone cannot create or verify those settings.
     environment: production
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write
@@ -158,7 +158,10 @@ jobs:
           grep -Fx "RELEASE_STARTED $SHA $attempt_id" \
             "$RUNNER_TEMP/sciconnect-start.log" >/dev/null
           done_ok=false
-          for check in $(seq 1 180); do
+          # A wall-clock deadline keeps release monitoring aligned with the
+          # job timeout even when SSH requests take longer than 10 seconds.
+          deadline=$((SECONDS + 85 * 60))
+          while (( SECONDS < deadline )); do
             # A temporary SSH outage affects monitoring, not the deployed
             # process. Poll the server-owned status (not fragile stdout).
             if status="$(ssh "${ssh_opts[@]}" "$target" \

@@ -34,7 +34,15 @@ bez registrija i bez produkcionih tajni.
    staticki egress ili namenski zastiteni deploy runner, uz odgovarajuce
    mreze/allowlist pravilo. U suprotnom zivi SSH korak nece raditi.
 5. Na zasebnom staging serveru vezbati kopiju baze, migraciju, release,
-   sve health/smoke provere i operator rollback. Proveriti slobodan disk. Odobravalac mora eksplicitno
+   sve health/smoke provere i operator rollback. Proveriti slobodan disk.
+   Proveriti efektivni systemd-logind KillUserProcesses policy: ako je
+   `yes`, ovaj SSH-detached tok se **odbija pre deploy-a**. Proveriti
+   `systemd-analyze cat-config systemd/logind.conf` i napraviti eksplicitnu
+   bezbednu izmenu/posebni systemd unit pre ponovnog pokusaja.
+   Staging proba mora da ukljuci prekid SSH veze tokom migracije.
+   Proveriti i Compose pod privremenim Docker configom
+   (`DOCKER_CONFIG="$(mktemp -d)" docker compose version`).
+   Odobravalac mora eksplicitno
    potvrditi da prethodni off-site backup postoji i da je odradjena proba
    vracanja baze na stagingu; workflow ne moze sam dokazati ove uslove.
 6. Tek posle provere GitHub Environment pravila i staging vezbe dodati
@@ -100,7 +108,14 @@ novi deploy napamet: prvo proveriti server-side log i exit-code, stanje
 baze, postojeci release-state/current-release i zdravlje sajta.
 Dok je proces u toku, server-side flock sprecava paralelan rollout.
 Status RELEASE_UNKNOWN je incident za operatersku istragu, ne dozvola
-za automatsko ponavljanje.
+za automatsko ponavljanje. Nadzor koristi deadline od 85 minuta,
+a job timeout 120 minuta. Ako je mnogo sporiji backup ili migracija,
+GitHub job moze zavrsiti neuspesno dok server nastavlja posao; operater
+prvo proverava server-side status.
+U slucaju SIGKILL/OOM/reboot kada worker ne izvrsi trap, token ostaje u
+starom docker-auth direktorijumu; novi start automatski cisti stale
+direktorijume starije od 24 sata samo ako vise nema zivog worker PID-a.
+U hitnom incidentu token rucno rotirati i proveriti disk.
 
 Ako migracija ili smoke test ne prodju, workflow se oznacava kao neuspesan.
 Skripta NE vraca automatski bazu: migracija je mozda vec promenila semu.
