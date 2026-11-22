@@ -228,6 +228,36 @@ describe("Workspace interactions", () => {
     expect(hookState.values[13]).toBe(false);
   });
 
+  it("does not page stale data when the newer refresh fails during an older search", async () => {
+    const first = deferred<Catalogs>();
+    const second = deferred<Catalogs>();
+    const searching = deferred<SearchResponse>();
+    vi.mocked(loadCatalogs)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    vi.mocked(api.search).mockReturnValueOnce(searching.promise);
+    const props = workspace("admin");
+
+    hookState.effects[1](); // refresh A begins
+    first.resolve(emptyCatalogs);
+    await flush();
+    expect(api.search).toHaveBeenCalledExactlyOnceWith({ ...emptyFilters, city: "Nis" }, 0);
+
+    // Refresh A has started an offset-zero search but its response is pending.
+    hookState.effects[1](); // refresh B begins
+    second.reject(new Error("Catalog B failed"));
+    await flush();
+
+    expect(hookState.values[7]).toBe("Catalog B failed");
+    expect(hookState.values[6]).toBe(true); // A still owns the search loading flag
+    props.onLoadMore(); // B's failed refresh must not reopen paging
+    expect(api.search).toHaveBeenCalledTimes(1);
+
+    searching.resolve(page([99], 1));
+    await flush();
+    expect(hookState.values[6]).toBe(false);
+  });
+
   it("reports catalog errors even when a newer search was submitted", async () => {
     const catalogs = deferred<Catalogs>();
     vi.mocked(loadCatalogs).mockReturnValueOnce(catalogs.promise);
