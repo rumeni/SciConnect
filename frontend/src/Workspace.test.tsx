@@ -132,7 +132,7 @@ function seedState({
 } = {}) {
   hookState.index = 0;
   hookState.effects = [];
-  // Workspace's 13 useState calls, in source order.
+  // Workspace's 14 useState calls, in source order.
   hookState.values = [
     "search",
     emptyCatalogs,
@@ -147,6 +147,7 @@ function seedState({
     null,
     false,
     0,
+    false, // refreshing the catalog
   ];
 }
 
@@ -192,11 +193,51 @@ describe("Workspace interactions", () => {
     vi.mocked(loadCatalogs).mockReturnValueOnce(catalogs.promise);
     const props = workspace("admin");
     hookState.effects[1](); // refresh begins while old results are shown
+    expect(hookState.values[13]).toBe(true);
     props.onLoadMore(); // a click racing the disabled-button render
     expect(api.search).not.toHaveBeenCalled();
     catalogs.resolve(emptyCatalogs);
     await flush();
     expect(api.search).toHaveBeenCalledExactlyOnceWith({ ...emptyFilters, city: "Nis" }, 0);
+    expect(hookState.values[13]).toBe(false);
+  });
+
+  it("keeps paging blocked during overlapping refreshes and applies only the newest snapshot", async () => {
+    const first = deferred<Catalogs>();
+    const second = deferred<Catalogs>();
+    vi.mocked(loadCatalogs)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const props = workspace("admin");
+
+    hookState.effects[1](); // write A
+    hookState.effects[1](); // write B, before A finishes
+    first.resolve(emptyCatalogs);
+    await flush();
+
+    // A must neither re-enable pagination nor start an obsolete offset-zero search.
+    expect(hookState.values[13]).toBe(true);
+    expect(api.search).not.toHaveBeenCalled();
+    props.onLoadMore();
+    expect(api.search).not.toHaveBeenCalled();
+
+    second.resolve(emptyCatalogs);
+    await flush();
+    expect(api.search).toHaveBeenCalledExactlyOnceWith({ ...emptyFilters, city: "Nis" }, 0);
+    expect(hookState.values[13]).toBe(false);
+  });
+
+  it("reports catalog errors even when a newer search was submitted", async () => {
+    const catalogs = deferred<Catalogs>();
+    vi.mocked(loadCatalogs).mockReturnValueOnce(catalogs.promise);
+    const props = workspace();
+    hookState.effects[1]();
+    props.onSearch();
+    catalogs.resolve(Promise.reject(new Error("Catalog unavailable")) as never);
+    await flush();
+
+    expect(hookState.values[7]).toBe("Catalog unavailable");
+    expect(hookState.values[13]).toBe(false);
   });
 
   it("loads the privileged institution catalog only in an admin workspace", async () => {
