@@ -18,24 +18,33 @@ attempts="$state/deploy-attempts"
 folder="$attempts/$attempt"
 script="$release/scripts/release/remote_deploy.sh"
 
-# Fail closed on hardening configurations that kill detached SSH-session
-# processes. Ubuntu's default is KillUserProcesses=no; a nondefault "yes"
-# requires a separately rehearsed systemd-managed deployment worker.
+# Consult RUNNING logind over D-Bus: disk configuration can differ from
+# what the daemon loaded, and KillOnlyUsers may override the global policy.
+# Unknown/unavailable settings fail closed; never guess the distro default.
 check_logind_policy() {
-  command -v systemd-analyze >/dev/null || {
-    echo "Cannot inspect systemd-logind KillUserProcesses policy" >&2; return 1;
+  command -v busctl >/dev/null || {
+    echo "busctl required to inspect running systemd-logind" >&2; return 1;
   }
-  local policy
-  policy="$(systemd-analyze cat-config systemd/logind.conf | awk -F= '
-    /^[[:space:]]*KillUserProcesses[[:space:]]*=/ {
-      x=$2; sub(/#.*/, "", x); gsub(/[[:space:]]/, "", x); value=x
-    }
-    END {print value}
-  ')" || return 1
-  [[ -z "$policy" || "$policy" == no ]] || {
-    echo "KillUserProcesses=$policy: unsafe to detach from SSH; refuse release" >&2
+  local manager="org.freedesktop.login1.Manager"
+  local service="org.freedesktop.login1"
+  local object="/org/freedesktop/login1"
+  local kill_all only_users
+  kill_all="$(busctl get-property "$service" "$object" "$manager" KillUserProcesses)" || {
+    echo "Cannot read running logind KillUserProcesses" >&2; return 1;
+  }
+  [[ "$kill_all" == "b false" ]] || {
+    echo "Unsafe running logind KillUserProcesses ($kill_all)" >&2; return 1;
+  }
+  only_users="$(busctl get-property "$service" "$object" "$manager" KillOnlyUsers)" || {
+    echo "Cannot read running logind KillOnlyUsers" >&2; return 1;
+  }
+  [[ "$only_users" == as\ * ]] || {
+    echo "Unexpected logind KillOnlyUsers property" >&2; return 1;
+  }
+  if [[ "$only_users" == *"\"$USER\""* ]]; then
+    echo "KillOnlyUsers contains deploy user $USER; refuse SSH-detached release" >&2
     return 1
-  }
+  fi
 }
 
 # A new poll must never report UNKNOWN if the worker completed between two
@@ -97,6 +106,24 @@ case "$mode" in
     # never use ~/.docker/config.json on the production host.
     DOCKER_CONFIG="$auth_dir" docker login ghcr.io \
       --username "$registry_user" --password-stdin >/dev/null
+    # Docker on Linux can auto-discover an external pass/secretservice helper
+    # even with an empty config. Such credentials survive rm -rf of auth_dir.
+    # Require inline auth stored ONLY in the per-attempt config, otherwise
+    # revoke the helper entry and fail closed before launching the worker.
+    if ! python3 - "$auth_dir/config.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    config = json.load(stream)
+assert not config.get("credsStore") and not config.get("credHelpers")
+registry = config.get("auths", {}).get("ghcr.io", {})
+assert isinstance(registry.get("auth"), str) and registry["auth"]
+PY
+    then
+      DOCKER_CONFIG="$auth_dir" docker logout ghcr.io >/dev/null 2>&1 || true
+      echo "Registry auth escaped isolated DOCKER_CONFIG or was not saved inline" >&2
+      exit 1
+    fi
     # Both stdout and stderr are server-side, with stdin disconnected. The
     # launched process and its lock survive runner cancellation or SSH loss.
     nohup setsid bash "$release/scripts/release/remote_session.sh" \

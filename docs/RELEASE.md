@@ -21,6 +21,12 @@ bez registrija i bez produkcionih tajni.
    GHCR_READ_USERNAME i GHCR_READ_TOKEN. SSH known_hosts mora biti proveren
    nezavisnim pouzdanim kanalom, ne automatski preuzet tokom release-a.
    GHCR token treba da ima samo read:packages i pristup odgovarajucim paketima.
+   GitHub server moze imati sistemski Docker credential helper (`pass`
+   ili `secretservice`) koji bi token sacuvao izvan privremenog foldera.
+   Launcher zato posle login-a **zahteva** `auths.ghcr.io.auth` u
+   privremenom config.json, bez `credsStore`/`credHelpers`; inace
+   pokusava `docker logout` i odbija release. Ovo proveriti i na staging
+   hostu sa stvarnom konfiguracijom, bez zapisivanja tokena u log.
    Token se tokom release-a cuva samo u privremenom server-side
    DOCKER_CONFIG direktorijumu, koji se po zavrsetku pozadinskog
    release procesa brise. Prekinut proces bez zavrsnog statusa zahteva
@@ -35,10 +41,14 @@ bez registrija i bez produkcionih tajni.
    mreze/allowlist pravilo. U suprotnom zivi SSH korak nece raditi.
 5. Na zasebnom staging serveru vezbati kopiju baze, migraciju, release,
    sve health/smoke provere i operator rollback. Proveriti slobodan disk.
-   Proveriti efektivni systemd-logind KillUserProcesses policy: ako je
-   `yes`, ovaj SSH-detached tok se **odbija pre deploy-a**. Proveriti
-   `systemd-analyze cat-config systemd/logind.conf` i napraviti eksplicitnu
-   bezbednu izmenu/posebni systemd unit pre ponovnog pokusaja.
+   Proveriti aktivni systemd-logind policy preko
+   `busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager KillUserProcesses`
+   i `KillOnlyUsers`. Pre starta skripta zahteva stvarno `b false`
+   i da korisnik deploy nije u KillOnlyUsers; ne oslanja se na fajl koji
+   mozda nije ucitan ni na distro podrazumevane vrednosti. Ako se vrednosti
+   ne mogu procitati ili su opasne, release se **odbija**. Posebna
+   per-user pravila ili prilagodjeni logind setup zahtevaju zasebnu
+   staging proveru stvarnog SSH prekida.
    Staging proba mora da ukljuci prekid SSH veze tokom migracije.
    Proveriti i Compose pod privremenim Docker configom
    (`DOCKER_CONFIG="$(mktemp -d)" docker compose version`).

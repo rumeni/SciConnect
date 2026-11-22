@@ -53,6 +53,10 @@ def test_workflow_requires_manual_dispatch_approval_and_opt_in() -> None:
     session = (SCRIPTS / "remote_session.sh").read_text()
     assert "nohup setsid" in session
     assert "check_logind_policy" in session
+    assert "busctl get-property" in session
+    assert "KillOnlyUsers" in session
+    assert 'docker logout ghcr.io' in session
+    assert 'config.get("credsStore")' in session
     assert "elif report_finished" in session
     assert 'ln -s "$HOME/.docker/cli-plugins"' in session
     assert "bash -s --" not in workflow
@@ -138,14 +142,18 @@ def test_detached_release_survives_launcher_exit_and_cleans_credentials(
         "if [ \"$1\" = compose ] && [ \"$2\" = version ]; then exit 0; fi\n"
         "test \"$1\" = login || exit 42\n"
         "test -n \"$DOCKER_CONFIG\" || exit 43\n"
-        "cat > \"$DOCKER_CONFIG/config.json\"\n"
+        "cat >/dev/null\n"
+        "printf '{\"auths\":{\"ghcr.io\":{\"auth\":\"b3BlcmF0b3I6dG9rZW4=\"}}}\\n' > \"$DOCKER_CONFIG/config.json\"\n"
     )
     fake_docker.chmod(0o755)
-    fake_logind = fake_bin / "systemd-analyze"
+    fake_logind = fake_bin / "busctl"
     fake_logind.write_text(
         "#!/bin/sh\n"
-        "test \"$1\" = cat-config || exit 40\n"
-        "printf 'KillUserProcesses=no\\n'\n"
+        'case "$4" in\n'
+        '  KillUserProcesses) printf "b false\\n" ;;\n'
+        '  KillOnlyUsers) printf "as 0\\n" ;;\n'
+        '  *) exit 45 ;;\n'
+        'esac\n'
     )
     fake_logind.chmod(0o755)
     env = {
@@ -213,8 +221,15 @@ def test_status_rechecks_exit_code_if_worker_finishes_during_pid_probe(
     assert result.stdout.strip() == f"RELEASE_OK {sha} {attempt}"
 
 
-def test_logind_killuserprocesses_yes_refuses_release_before_creating_auth(
-    tmp_path: pathlib.Path,
+@pytest.mark.parametrize(
+    ("property_name", "property_value"),
+    [
+        ("KillUserProcesses", "b true"),
+        ("KillOnlyUsers", 'as 1 "deploy"'),
+    ],
+)
+def test_logind_rejects_unsafe_running_configuration_before_creating_auth(
+    tmp_path: pathlib.Path, property_name: str, property_value: str,
 ) -> None:
     sha = "a" * 40
     attempt = "453-2"
@@ -225,8 +240,17 @@ def test_logind_killuserprocesses_yes_refuses_release_before_creating_auth(
     (release / "compose.release.yaml").write_text("services: {}\n")
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    check = fake_bin / "systemd-analyze"
-    check.write_text("#!/bin/sh\nprintf 'KillUserProcesses=yes\\n'\n")
+    check = fake_bin / "busctl"
+    other = "KillOnlyUsers" if property_name == "KillUserProcesses" else "KillUserProcesses"
+    other_value = "as 0" if other == "KillOnlyUsers" else "b false"
+    check.write_text(
+        "#!/bin/sh\n"
+        f'if [ "$4" = "{property_name}" ]; then\n'
+        f"  printf '%s\\n' '{property_value}'\n"
+        f'elif [ "$4" = "{other}" ]; then\n'
+        f"  printf '%s\\n' '{other_value}'\n"
+        "else exit 51; fi\n"
+    )
     check.chmod(0o755)
     env = {
         **os.environ, "HOME": str(tmp_path),
@@ -240,7 +264,7 @@ def test_logind_killuserprocesses_yes_refuses_release_before_creating_auth(
         input="dummy", capture_output=True, text=True, env=env, timeout=10,
     )
     assert result.returncode != 0
-    assert "KillUserProcesses=yes" in result.stderr
+    assert property_name in result.stderr or "KillOnlyUsers" in result.stderr
     assert not (tmp_path / "SciConnect" / "release-state").exists()
 
 
