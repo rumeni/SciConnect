@@ -41,6 +41,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC
 from email.utils import parsedate_to_datetime
 from typing import Protocol
 
@@ -75,8 +76,11 @@ class GeocodingUnavailable(Exception):
     `retry_after` is the number of seconds until asking again is worthwhile.
     """
 
-    def __init__(self, message: str, retry_after: float) -> None:
+    def __init__(self, message: str, retry_after: float = _SOON) -> None:
         super().__init__(message)
+        # Never NaN or infinite, whoever raised it: the router rounds this up.
+        if not math.isfinite(retry_after):
+            retry_after = _SOON
         self.retry_after = max(retry_after, 0.0)
 
 
@@ -303,13 +307,19 @@ def _retry_after(response: httpx.Response) -> float | None:
     if not value:
         return None
     try:
-        return float(value)
+        seconds = float(value)
     except ValueError:
         pass
+    else:
+        # float() also accepts "nan" and "inf"; the header is untrusted input.
+        return seconds if math.isfinite(seconds) else None
     try:
         when = parsedate_to_datetime(value)
     except (TypeError, ValueError):
         return None
+    if when.tzinfo is None:
+        # An HTTP-date is always GMT; "-0000" parses as naive, not as local time.
+        when = when.replace(tzinfo=UTC)
     return when.timestamp() - time.time()
 
 

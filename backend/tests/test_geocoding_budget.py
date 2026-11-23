@@ -433,3 +433,56 @@ def test_production_refuses_a_faster_rate_against_public_nominatim() -> None:
         geocoding_min_interval_seconds=0,
         geocoding_url="https://geo.internal.example/search",
     )
+
+
+@pytest.mark.usefixtures("budget")
+@pytest.mark.parametrize("header", ["nan", "inf", "-inf", "soon"])
+def test_an_unusable_retry_after_falls_back_to_the_default_cooldown(header: str) -> None:
+    upstream = Upstream(
+        httpx.Response(429, headers={"Retry-After": header}), httpx.Response(200, json=FOUND)
+    )
+    clock = FakeClock()
+    geocoder = _geocoder(upstream, clock)
+
+    with pytest.raises(GeocodingUnavailable) as raised:
+        geocoder("First")
+    assert raised.value.retry_after == 60.0
+    clock.advance(59)
+    with pytest.raises(GeocodingUnavailable):
+        geocoder("First")
+    clock.advance(2)
+    assert geocoder("First") is not None
+
+
+def test_a_nan_retry_after_still_answers_503(client: TestClient, budget) -> None:
+    from app.main import app
+
+    upstream = Upstream(httpx.Response(429, headers={"Retry-After": "nan"}))
+    geocoder = _geocoder(upstream, FakeClock())
+    app.dependency_overrides[default_geocoder] = lambda: geocoder
+
+    response = client.get("/api/v1/geocode", params={"q": "Belgrade"})
+
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "60"
+
+
+def test_unavailable_never_carries_a_non_finite_wait() -> None:
+    assert GeocodingUnavailable("x", float("nan")).retry_after == 60.0
+    assert GeocodingUnavailable("x").retry_after == 60.0
+
+
+@pytest.mark.usefixtures("budget")
+def test_an_http_date_retry_after_is_read_as_gmt() -> None:
+    from datetime import UTC, datetime, timedelta
+    from email.utils import format_datetime
+
+    when = (datetime.now(UTC) + timedelta(seconds=600)).replace(tzinfo=None)
+    header = format_datetime(when)  # a naive datetime formats with "-0000"
+    assert header.endswith("-0000")
+    upstream = Upstream(httpx.Response(503, headers={"Retry-After": header}))
+
+    with pytest.raises(GeocodingUnavailable) as raised:
+        _geocoder(upstream, FakeClock())("Belgrade")
+
+    assert 590 <= raised.value.retry_after <= 600
