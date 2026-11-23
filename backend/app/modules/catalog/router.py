@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -205,8 +206,8 @@ def geocode(
     except GeocodingUnavailable as error:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            "Address lookup is busy right now. Try again in a minute.",
-            headers={"Retry-After": "60"},
+            "Address lookup is busy right now. Try again shortly.",
+            headers={"Retry-After": str(max(1, math.ceil(error.retry_after)))},
         ) from error
     if located is None:
         raise HTTPException(

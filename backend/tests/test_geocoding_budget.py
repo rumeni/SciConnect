@@ -279,6 +279,70 @@ def test_an_absurd_retry_after_is_capped() -> None:
 
 
 @pytest.mark.usefixtures("budget")
+def test_retry_after_zero_means_no_pause() -> None:
+    upstream = Upstream(
+        httpx.Response(429, headers={"Retry-After": "0"}), httpx.Response(200, json=FOUND)
+    )
+    clock = FakeClock()
+    geocoder = _geocoder(upstream, clock)
+
+    with pytest.raises(GeocodingUnavailable) as raised:
+        geocoder("First")
+    assert raised.value.retry_after == 0
+    clock.advance(1)
+    assert geocoder("First") is not None
+
+
+@pytest.mark.usefixtures("budget")
+def test_a_pause_that_starts_while_a_request_waits_stops_it() -> None:
+    upstream = Upstream(httpx.Response(200, json=FOUND))
+    clock = FakeClock()
+    geocoder: NominatimGeocoder
+
+    def sleep_while_another_request_is_told_to_back_off(seconds: float) -> None:
+        geocoder._back_off(httpx.Response(429, headers={"Retry-After": "30"}))
+
+    geocoder = NominatimGeocoder(
+        clock=clock,
+        sleep=sleep_while_another_request_is_told_to_back_off,
+        transport=httpx.MockTransport(upstream),
+    )
+    geocoder("First")
+
+    with pytest.raises(GeocodingUnavailable) as raised:
+        geocoder("Second")  # queued for 1 s, during which the pause began
+
+    assert raised.value.retry_after == 30
+    assert upstream.queries == ["First"]
+
+
+@pytest.mark.usefixtures("budget")
+@pytest.mark.parametrize("status", [400, 404])
+def test_a_rejected_query_is_not_found_rather_than_busy(status: int) -> None:
+    upstream = Upstream(httpx.Response(status))
+    geocoder = _geocoder(upstream, FakeClock())
+
+    assert geocoder("???") is None
+    assert geocoder("???") is None
+    assert len(upstream.requests) == 1
+
+
+def test_the_search_tells_clients_how_long_the_pause_lasts(client: TestClient, budget) -> None:
+    from app.main import app
+
+    upstream = Upstream(httpx.Response(429, headers={"Retry-After": "1800"}))
+    geocoder = _geocoder(upstream, FakeClock())
+    app.dependency_overrides[default_geocoder] = lambda: geocoder
+
+    first = client.get("/api/v1/geocode", params={"q": "Belgrade"})
+    second = client.get("/api/v1/geocode", params={"q": "Nis"})
+
+    assert first.status_code == second.status_code == 503
+    assert first.headers["Retry-After"] == second.headers["Retry-After"] == "1800"
+    assert len(upstream.requests) == 1
+
+
+@pytest.mark.usefixtures("budget")
 def test_a_timeout_is_unavailable_and_not_cached() -> None:
     upstream = Upstream(httpx.ReadTimeout("slow"), httpx.Response(200, json=FOUND))
     clock = FakeClock()
@@ -340,7 +404,8 @@ def test_search_and_writes_share_the_budget(client: TestClient, shared: Upstream
 
     busy = client.get("/api/v1/geocode", params={"q": "Place 4"})
     assert busy.status_code == 503
-    assert busy.headers["Retry-After"] == "60"
+    # The queue is 4 s long and may be 3 s: a slot frees up in 1 s.
+    assert busy.headers["Retry-After"] == "1"
 
     # A write while the budget is spent still succeeds, just without a map.
     created = _create(client, "Busy Institute")

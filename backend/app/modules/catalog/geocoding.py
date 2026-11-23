@@ -53,6 +53,8 @@ logger = logging.getLogger(__name__)
 # A Retry-After longer than this is treated as this long, so one bad header
 # cannot switch geocoding off for days.
 MAX_COOLDOWN_SECONDS = 3600.0
+# What to suggest after a timeout or server error that named no wait.
+_SOON = 60.0
 
 
 @dataclass(frozen=True)
@@ -70,7 +72,12 @@ class GeocodingUnavailable(Exception):
     """The lookup was not attempted or did not complete; asking later may work.
 
     Distinct from None, which means the service answered and found nothing.
+    `retry_after` is the number of seconds until asking again is worthwhile.
     """
+
+    def __init__(self, message: str, retry_after: float) -> None:
+        super().__init__(message)
+        self.retry_after = max(retry_after, 0.0)
 
 
 def address_query(
@@ -120,14 +127,12 @@ class NominatimGeocoder:
         # The earliest moment the next outbound request may start.
         self._next_slot = 0.0
         self._paused_until = 0.0
-        self.upstream_requests = 0
 
     def reset(self) -> None:
         with self._lock:
             self._cache.clear()
             self._next_slot = 0.0
             self._paused_until = 0.0
-            self.upstream_requests = 0
 
     def __call__(self, query: str) -> Location | None:
         """Look the place up. None: not found. Raises GeocodingUnavailable."""
@@ -180,24 +185,39 @@ class NominatimGeocoder:
         Slots are handed out in order under the lock, then each caller sleeps
         outside it, so requests start at least the minimum interval apart even
         when many threads arrive together.
+
+        With geocoding_max_wait_seconds below geocoding_min_interval_seconds
+        nobody ever queues: in a burst only the first caller gets through.
         """
         with self._lock:
             now = self._clock()
-            if now < self._paused_until:
-                logger.info("Geocoding %r skipped: the service asked us to back off", query)
-                raise GeocodingUnavailable("the geocoding service asked us to slow down")
+            self._raise_if_paused(query, now)
             slot = max(now, self._next_slot)
             wait = slot - now
             if wait > settings.geocoding_max_wait_seconds:
                 logger.info("Geocoding %r skipped: %.1fs queue exceeds the wait limit", query, wait)
-                raise GeocodingUnavailable("too many address lookups at once")
+                raise GeocodingUnavailable(
+                    "too many address lookups at once",
+                    retry_after=wait - settings.geocoding_max_wait_seconds,
+                )
             self._next_slot = slot + settings.geocoding_min_interval_seconds
-            self.upstream_requests += 1
         if wait > 0:
             self._sleep(wait)
+            # The service may have asked us to back off while we slept.
+            with self._lock:
+                self._raise_if_paused(query, self._clock())
 
-    def _back_off(self, response: httpx.Response) -> None:
-        seconds = _retry_after(response) or settings.geocoding_cooldown_seconds
+    def _raise_if_paused(self, query: str, now: float) -> None:
+        if now < self._paused_until:
+            logger.info("Geocoding %r skipped: the service asked us to back off", query)
+            raise GeocodingUnavailable(
+                "the geocoding service asked us to slow down",
+                retry_after=self._paused_until - now,
+            )
+
+    def _back_off(self, response: httpx.Response) -> float:
+        retry = _retry_after(response)
+        seconds = settings.geocoding_cooldown_seconds if retry is None else retry
         seconds = min(max(seconds, 0.0), MAX_COOLDOWN_SECONDS)
         with self._lock:
             self._paused_until = max(self._paused_until, self._clock() + seconds)
@@ -206,6 +226,7 @@ class NominatimGeocoder:
             response.status_code,
             seconds,
         )
+        return seconds
 
     # --- Upstream -------------------------------------------------------------
 
@@ -221,13 +242,31 @@ class NominatimGeocoder:
                     },
                     timeout=settings.geocoding_timeout_seconds,
                 )
-            if response.status_code in (429, 503):
-                self._back_off(response)
-            response.raise_for_status()
-            matches = response.json()
-        except (httpx.HTTPError, ValueError) as error:
+        except httpx.HTTPError as error:
             logger.warning("Geocoding %r failed: %s", query, error)
-            raise GeocodingUnavailable("the geocoding service did not answer") from error
+            raise GeocodingUnavailable(
+                "the geocoding service did not answer", retry_after=_SOON
+            ) from error
+
+        if response.status_code in (429, 503):
+            pause = self._back_off(response)
+            raise GeocodingUnavailable("the geocoding service asked us to slow down", pause)
+        if response.status_code in (400, 404):
+            # The service rejected this query itself; asking again will not help.
+            logger.info("Geocoding %r was rejected with %s", query, response.status_code)
+            return None
+        if response.is_error:
+            logger.warning("Geocoding %r failed with %s", query, response.status_code)
+            raise GeocodingUnavailable(
+                f"the geocoding service answered {response.status_code}", retry_after=_SOON
+            )
+        try:
+            matches = response.json()
+        except ValueError as error:
+            logger.warning("Geocoding %r returned unreadable JSON: %s", query, error)
+            raise GeocodingUnavailable(
+                "the geocoding service gave an unreadable answer", retry_after=_SOON
+            ) from error
 
         return _first_location(query, matches)
 
