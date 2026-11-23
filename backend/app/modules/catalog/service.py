@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 
@@ -335,8 +336,30 @@ def link_analysis_researcher(
     return link
 
 
+# Serbian Cyrillic to Serbian Latin, without diacritics. Both ђ and đ become
+# "dj" (Unicode does not decompose đ), so the Cyrillic and Latin spellings of
+# one name produce the same slug.
+_CYRILLIC_TO_LATIN = str.maketrans(
+    {
+        "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "ђ": "dj", "е": "e",
+        "ж": "z", "з": "z", "и": "i", "ј": "j", "к": "k", "л": "l", "љ": "lj",
+        "м": "m", "н": "n", "њ": "nj", "о": "o", "п": "p", "р": "r", "с": "s",
+        "т": "t", "ћ": "c", "у": "u", "ф": "f", "х": "h", "ц": "c", "ч": "c",
+        "џ": "dz", "ш": "s", "đ": "dj",
+    }
+)  # fmt: skip
+
+
 def slugify(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    """Derive an ASCII URL slug from a name in Latin or Serbian Cyrillic.
+
+    Cyrillic is transliterated, Latin diacritics are stripped (Čačak -> cacak),
+    and any other run of characters becomes a single hyphen. A name with
+    nothing usable left falls back to "institution".
+    """
+    text = value.lower().translate(_CYRILLIC_TO_LATIN)
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
     return slug or "institution"
 
 
