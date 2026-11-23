@@ -7,8 +7,12 @@ bez registrija i bez produkcionih tajni.
 
 ## Preduslovi pre aktiviranja zivog deploy-a
 
-1. Zavrsiti tiket **#9**: CI nad stvarnim PostgreSQL 17 i proba svih Alembic
-   migracija od prazne baze. Postojeci SQLite testovi nisu zamena.
+1. Tiket **#9** (CI nad stvarnim PostgreSQL 17 i proba svih Alembic migracija
+   od prazne baze) pokriva CI posao `backend-postgres`: `alembic upgrade head`
+   i `alembic check` na praznoj bazi, zatim `tests_integration/` (API, veze,
+   brisanje i ogranicenja na PostgreSQL-u). Posao mora biti zelen na SHA koji
+   se objavljuje; postojeci SQLite testovi nisu zamena. Lokalno pokretanje je
+   opisano u `backend/tests_integration/conftest.py`.
 2. GitHub → Settings → Environments → **production**: ukljuciti required
    reviewers, ograniciti granu na main, po mogucnosti iskljuciti admin bypass
    i proveriti da odobrenje zaista blokira posao. **Obavezno** ograniciti
@@ -222,7 +226,9 @@ baseline). Bez toga nema garantovanog brzog rollback-a na staru verziju.
 
 - GitHub Environment prava, SSH pristup, prava za GHCR i firewall nisu
   automatski dokaziva ovim PR-om.
-- Testiranje migracija na PostgreSQL iz tiketa #9 ostaje uslov za CD.
+- CI posao `backend-postgres` (tiket #9) testira migracije na praznoj bazi,
+  ne na kopiji produkcionih podataka: migracija koja zavisi od postojecih
+  redova i dalje se proverava na stagingu.
 - CI na main otkazuje stariji run kada stigne novi commit: SHA bez
   zavrsenog zelenog push run-a namerno nije dozvoljen za release.
 - Za Docker Compose release overlay potrebno je izdanje koje podrzava
