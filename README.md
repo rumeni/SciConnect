@@ -272,10 +272,23 @@ This means two outbound dependencies at runtime: map tiles from
 `tile.openstreetmap.org` in the browser, and address lookups to
 `nominatim.openstreetmap.org` from the API when an institution is created.
 Everything else works offline against the local API. Set
-`APP_GEOCODING_ENABLED=false` to skip lookups entirely. Nominatim's usage policy
-asks for an identifying `User-Agent` and limits request rates, so set
-`APP_GEOCODING_USER_AGENT` to your own deployment before using the public
-service in earnest, or point `APP_GEOCODING_URL` at your own instance.
+`APP_GEOCODING_ENABLED=false` to skip lookups entirely.
+
+Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/)
+allows at most one request per second and asks for an identifying
+`User-Agent`. All lookups (the visitor's "search near an address" and
+institution writes) share one budget: requests to the service start at least
+`APP_GEOCODING_MIN_INTERVAL_SECONDS` apart (1 s), a lookup that would queue
+longer than `APP_GEOCODING_MAX_WAIT_SECONDS` is turned away (503 on search, no
+coordinates on a write), and a 429 or 503 from the service pauses lookups for
+its `Retry-After`. Results are cached in memory: found places for a week, "no
+match" for an hour. The per-visitor `APP_RATE_LIMIT_GEOCODE` still applies on
+top.
+
+The budget and cache live in the API process, which is why production runs
+one worker. More workers or containers would each get their own budget; at
+that point use a shared store, or point `APP_GEOCODING_URL` at a self-hosted
+or commercial geocoder and set `APP_GEOCODING_USER_AGENT` for your deployment.
 
 Seeded institutions carry invented street addresses and hardcoded coordinates,
 so seeding never needs the network.

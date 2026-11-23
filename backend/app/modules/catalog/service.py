@@ -6,7 +6,12 @@ from dataclasses import dataclass, field, replace
 from sqlalchemy import Select, exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.modules.catalog.geocoding import Geocoder, address_query, no_geocoder
+from app.modules.catalog.geocoding import (
+    Geocoder,
+    GeocodingUnavailable,
+    address_query,
+    no_geocoder,
+)
 from app.modules.catalog.models import (
     INSTITUTION_SLUG_MAX_LENGTH,
     AnalysisType,
@@ -395,9 +400,18 @@ def create_institution(
 
 
 def locate(payload: InstitutionCreate, geocoder: Geocoder):
-    """Find coordinates for a written address. Returns None when it cannot be placed."""
+    """Find coordinates for a written address. Returns None when it cannot be placed.
+
+    An unavailable or busy geocoding service never fails the write: the
+    institution is stored without coordinates, as for an unknown address.
+    """
     query = address_query(payload.address, payload.city, payload.country)
-    return geocoder(query) if query else None
+    if not query:
+        return None
+    try:
+        return geocoder(query)
+    except GeocodingUnavailable:
+        return None
 
 
 def create_instrument_type(db: Session, name: str, description: str | None) -> InstrumentType:

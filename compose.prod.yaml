@@ -82,9 +82,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    # One worker on purpose: the rate limiter counts in process memory, so two
-    # workers would allow twice the configured rate. Scaling past one needs a
-    # shared store first.
+    # One worker on purpose: the rate limiter and the Nominatim budget and cache
+    # live in process memory, so two workers would allow twice the configured
+    # rates. Scaling past one needs a shared store first.
     command:
       [
         "uvicorn",

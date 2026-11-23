@@ -46,9 +46,22 @@ class Settings(BaseSettings):
     geocoding_enabled: bool = True
     geocoding_url: str = "https://nominatim.openstreetmap.org/search"
     geocoding_timeout_seconds: float = 8.0
-    # Nominatim's usage policy requires an identifying User-Agent. Point this at
-    # your own deployment before using the public service in earnest.
-    geocoding_user_agent: str = "SciConnect/0.1 (https://example.org/sciconnect)"
+    # Nominatim's usage policy requires an identifying User-Agent. A fork or
+    # another deployment should point this at its own site.
+    geocoding_user_agent: str = "SciConnect/0.1 (+https://sciconnect.rs)"
+    # One budget for every lookup the process makes, whoever asks: requests to
+    # the service start at least this far apart. The public Nominatim allows at
+    # most one per second. See app/modules/catalog/geocoding.py.
+    geocoding_min_interval_seconds: float = Field(default=1.0, ge=0)
+    # How long a lookup may queue for its turn before giving up (503 on search,
+    # no coordinates on a write). Keeps a burst from tying up worker threads.
+    geocoding_max_wait_seconds: float = Field(default=3.0, ge=0)
+    # Found places are cached for a week, "no match" for an hour. Errors never.
+    geocoding_cache_ttl_seconds: int = Field(default=7 * 24 * 3600, ge=0)
+    geocoding_negative_cache_ttl_seconds: int = Field(default=3600, ge=0)
+    geocoding_cache_max_entries: int = Field(default=2048, ge=0)
+    # Pause after a 429/503 that names no Retry-After.
+    geocoding_cooldown_seconds: float = Field(default=60.0, ge=0)
 
     # --- Writing to the catalog -------------------------------------------
     # Every POST and DELETE carries this secret in an `X-Admin-Token` header.
@@ -175,6 +188,16 @@ class Settings(BaseSettings):
             problems.append(
                 "APP_ALLOWED_HOSTS must name the domains this API answers on, "
                 "not '*'"
+            )
+
+        if (
+            self.geocoding_enabled
+            and "nominatim.openstreetmap.org" in self.geocoding_url
+            and self.geocoding_min_interval_seconds < 1
+        ):
+            problems.append(
+                "APP_GEOCODING_MIN_INTERVAL_SECONDS is below 1 second; the public "
+                "Nominatim service allows at most one request per second"
             )
 
         if self.database_url.startswith("sqlite"):

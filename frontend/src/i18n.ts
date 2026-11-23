@@ -279,6 +279,7 @@ const en = {
   "prompt.footer": "You can change this later from the “Near me” tab.",
   "prompt.readFailed": "Could not read your location.",
   "prompt.notFound": "That address could not be found. Try adding the city or country.",
+  "prompt.lookupBusy": "Address lookup is busy right now. Try again in a minute.",
 
   // --- Detail panel ---------------------------------------------------------
   "detail.title": "Details",
@@ -754,6 +755,7 @@ const sr: Record<MessageKey, string> = {
   "prompt.footer": "Ovo možete promeniti kasnije na kartici „U mojoj blizini“.",
   "prompt.readFailed": "Vaša lokacija nije mogla da se pročita.",
   "prompt.notFound": "Ta adresa nije pronađena. Pokušajte da dodate grad ili državu.",
+  "prompt.lookupBusy": "Pretraga adresa je trenutno zauzeta. Pokušajte ponovo za minut.",
 
   // --- Detail panel ---------------------------------------------------------
   "detail.title": "Detalji",
