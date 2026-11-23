@@ -210,7 +210,9 @@ def test_postgres_rejects_an_invalid_status(pg_engine: Engine) -> None:
             )
 
 
-def test_postgres_rejects_linking_another_institutions_instrument(client: TestClient) -> None:
+def test_postgres_rejects_linking_another_institutions_instrument(
+    client: TestClient, pg_engine: Engine
+) -> None:
     """The composite foreign key keeps an analysis and its instrument together."""
     owner = _institution(client, "Owner")
     outsider = _institution(client, "Outsider")
@@ -227,10 +229,8 @@ def test_postgres_rejects_linking_another_institutions_instrument(client: TestCl
         {"institution_id": outsider["id"], "instrument_type_id": instrument_type["id"]},
     )
 
-    from app.core.database import engine
-
     with pytest.raises(IntegrityError, match="ForeignKeyViolation"):
-        with engine.begin() as connection:
+        with pg_engine.begin() as connection:
             connection.execute(
                 insert(InstitutionAnalysisInstrument).values(
                     institution_analysis_id=analysis["id"],

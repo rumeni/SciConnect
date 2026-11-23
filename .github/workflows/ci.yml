@@ -34,6 +34,7 @@ jobs:
   # secrets or remote databases are involved.
   backend-postgres:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -75,6 +76,7 @@ jobs:
 
   api-image:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Build the production API image

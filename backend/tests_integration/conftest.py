@@ -12,6 +12,11 @@ The suite creates its own uniquely named database on that server, migrates it
 with Alembic from empty, and drops it again at the end, so it never touches an
 existing database and two runs (or two xdist workers) cannot collide. Without
 INTEGRATION_DATABASE_URL every test here is skipped.
+
+Run it from the host, not inside a compose container: only a server on
+localhost is accepted (compose publishes its database on 127.0.0.1:5432).
+Run it in its own pytest process too; `pytest tests tests_integration` in one
+call is refused, because the SQLite suite binds the app to SQLite first.
 """
 
 import os
@@ -125,11 +130,31 @@ def _run_alembic(action: str, url: URL, revision: str) -> None:
         settings.database_url = previous
 
 
+def _require_app_on_scratch_database() -> None:
+    """Refuse to run if the app was bound to another database before us.
+
+    The app reads DATABASE_URL once, at import. If something imported it
+    first, most likely tests/conftest.py (which points it at SQLite) because
+    both suites were passed to one pytest call, the API tests would quietly
+    run against that database instead of PostgreSQL.
+    """
+    from app.core.database import engine as app_engine
+
+    bound = app_engine.url
+    if bound.get_backend_name() != "postgresql" or bound.database != DATABASE_NAME:
+        raise pytest.UsageError(
+            "tests_integration must run in its own pytest process: the app is already "
+            f"bound to {bound.get_backend_name()} database {bound.database!r}. "
+            "Run `pytest tests` and `pytest tests_integration` separately."
+        )
+
+
 @pytest.fixture(scope="session")
 def migrated_url() -> Iterator[URL]:
     """The session's scratch database, migrated from empty to head."""
     if SERVER_URL is None:
         pytest.skip(f"{SERVER_URL_VARIABLE} is not set")
+    _require_app_on_scratch_database()
     url = create_database(DATABASE_NAME)
     try:
         upgrade(url)
@@ -150,13 +175,22 @@ def pg_engine(migrated_url: URL) -> Iterator[Engine]:
 
 @pytest.fixture
 def clean_tables(pg_engine: Engine) -> Iterator[None]:
-    """Empty every application table after the test, keeping the schema."""
+    """Empty every application table before and after the test.
+
+    Truncating on the way in means a test never depends on an earlier one
+    having cleaned up after itself.
+    """
+    _truncate_all(pg_engine)
     yield
+    _truncate_all(pg_engine)
+
+
+def _truncate_all(engine: Engine) -> None:
     from app.core.database import Base
     from app.modules.catalog import models  # noqa: F401
 
     tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
-    with pg_engine.begin() as connection:
+    with engine.begin() as connection:
         connection.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
 
 
