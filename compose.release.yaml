@@ -1,0 +1,15 @@
+# Overlay for manually approved, digest-pinned releases only.
+# Always combine with compose.prod.yaml and use --no-build --pull never (after explicit app digest pulls).
+# Normal docker compose development/production builds are unchanged.
+services:
+  api:
+    build: !reset null
+    image: ${SCICONNECT_API_IMAGE:?approved API image digest required}
+    environment:
+      # Production migrations run explicitly, after a verified backup and before
+      # the new API is started. Never migrate implicitly on a container restart.
+      APP_RUN_MIGRATIONS: "false"
+      APP_SEED_ON_STARTUP: "false"
+  frontend:
+    build: !reset null
+    image: ${SCICONNECT_FRONTEND_IMAGE:?approved frontend image digest required}

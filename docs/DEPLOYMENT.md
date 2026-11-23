@@ -166,20 +166,37 @@ Spoljne provere zaglavlja i TLS-a:
 
 ---
 
+## Kontrolisani release i oporavak
+
+Za rucno odobravanje, verifikaciju CI SHA, pinovane Docker slike, backup
+pre migracije i operator rollback pogledaj [RELEASE.md](RELEASE.md).
+Novi workflow radi samo na rucni poziv; merge ne deployuje sajt.
+
 ## Održavanje
 
-**Nova verzija:**
+**Nova verzija (SAMO rucni legacy rezim, pre prvog odobrenog release-a):**
 ```bash
 cd ~/SciConnect && git pull
 docker compose -f compose.prod.yaml --env-file .env.production up -d --build
 ```
-Migracije baze se pokreću same pri startu API-ja.
+Migracije baze se u tom starom rezimu pokrecu same pri startu API-ja.
 
-**Promena admin ključa** (npr. ako je procurio): upiši novi u `.env.production`, pa:
+**VAZNO: nakon PR #11 digest-pinned release-a, NE pokretati prethodnu
+komandu niti obican `up -d api` bez overlay-a.** One mogu zameniti
+odobrene slike starim lokalnim buildom i startovati nekompatibilne Alembic
+migracije. Za naredni deploy, promenu konfiguracije i rollback koristiti
+iste odobrene release digest-e i overlay prema [RELEASE.md](RELEASE.md).
+Povratak na legacy verziju nakon nove migracije moze zahtevati zaseban,
+odobren restore baze, nije automatski siguran.
+
+**Promena admin ključa u legacy rezimu** (npr. ako je procurio): upiši novi u `.env.production`, pa:
 ```bash
 docker compose -f compose.prod.yaml --env-file .env.production up -d api
 ```
-Stari ključ prestaje da važi odmah, svuda. Admin koji je bio prijavljen biva odjavljen pri sledećoj izmeni, uz poruku da se prijavi ponovo.
+Ova komanda je **samo za legacy instalaciju pre digest release-a**.
+Nakon kontrolisanog release-a koristi pinovanu API sliku i release overlay,
+bez automatske migracije; postupak je u [RELEASE.md](RELEASE.md).
+Stari ključ prestaje da važi posle ponovnog podizanja API-ja.
 
 **Rezervna kopija baze** (pored Hetzner snimaka). Dodaj u `crontab -e`:
 ```
@@ -187,10 +204,11 @@ Stari ključ prestaje da važi odmah, svuda. Admin koji je bio prijavljen biva o
 ```
 Tako se čuva poslednjih 7 dana. Povremeno prebaci neku kopiju van servera.
 
-**Vraćanje iz kopije:**
-```bash
-gunzip -c backup-Mon.sql.gz | docker compose -f compose.prod.yaml --env-file .env.production exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
-```
+**Vraćanje iz kopije:** ne vracaj dump direktno u bazu koja vec sadrzi
+podatke: to moze da izazove konflikt, duplikate ili parcijalan restore.
+Za bezbednu vezbu na izolovanom PostgreSQL-u i plan kontrolisanog vracanja
+pogledaj [RELEASE.md](RELEASE.md). Stare SQL.GZ kopije najpre testiraj na
+praznoj staging bazi, ne na produkciji.
 
 ---
 
