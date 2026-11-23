@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.modules.catalog.geocoding import Geocoder, address_query, no_geocoder
 from app.modules.catalog.models import (
+    INSTITUTION_SLUG_MAX_LENGTH,
     AnalysisType,
     Institution,
     InstitutionAnalysis,
@@ -355,11 +356,12 @@ def slugify(value: str) -> str:
 
     Cyrillic is transliterated, Latin diacritics are stripped (Čačak -> cacak),
     and any other run of characters becomes a single hyphen. A name with
-    nothing usable left falls back to "institution".
+    nothing usable left falls back to "institution". Transliteration can
+    lengthen text (љ -> lj), so the slug is cut to fit the column.
     """
     text = value.lower().translate(_CYRILLIC_TO_LATIN)
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
-    slug = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "-", text)[:INSTITUTION_SLUG_MAX_LENGTH].strip("-")
     return slug or "institution"
 
 

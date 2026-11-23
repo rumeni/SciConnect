@@ -2,6 +2,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.modules.catalog.models import INSTITUTION_SLUG_MAX_LENGTH
+
 
 def _blank_to_none(value: Any) -> Any:
     """A text field left empty is absent, not an empty string.
@@ -205,7 +207,7 @@ class InstitutionDetail(InstitutionSummary):
 
 class InstitutionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    slug: str | None = Field(default=None, max_length=220)
+    slug: str | None = Field(default=None, max_length=INSTITUTION_SLUG_MAX_LENGTH)
     description: str | None = None
     # The street address is looked up to place the institution on a map.
     # Explicit coordinates, when given, are used as-is and skip the lookup.

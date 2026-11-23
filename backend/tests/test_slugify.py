@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.modules.catalog.models import INSTITUTION_SLUG_MAX_LENGTH
 from app.modules.catalog.service import slugify
 
 
@@ -30,6 +31,24 @@ def test_slugify_transliterates_serbian_and_strips_diacritics(name: str, expecte
 def test_cyrillic_and_latin_spellings_share_a_slug() -> None:
     assert slugify("Ниш") == slugify("Niš") == "nis"
     assert slugify("Ђорђе Јовановић") == slugify("Đorđe Jovanović") == "djordje-jovanovic"
+
+
+def test_a_slug_never_exceeds_the_column_length() -> None:
+    # Each љ becomes two letters, so a maximum-length name doubles in size.
+    slug = slugify("љ" * 200)
+    assert len(slug) == INSTITUTION_SLUG_MAX_LENGTH
+    assert slug == "lj" * (INSTITUTION_SLUG_MAX_LENGTH // 2)
+    # Cutting on a separator must not leave a trailing hyphen.
+    # "a-a-a-..." has a hyphen at index 219, exactly where the cut falls.
+    cut = slugify("a " * 150)
+    assert len(cut) == INSTITUTION_SLUG_MAX_LENGTH - 1
+    assert not cut.endswith("-")
+
+
+def test_a_maximum_length_cyrillic_name_can_be_created(client: TestClient) -> None:
+    response = _post_institution(client, {"name": "Њ" * 200})
+    assert response.status_code == 201, response.text
+    assert len(response.json()["slug"]) <= INSTITUTION_SLUG_MAX_LENGTH
 
 
 def _post_institution(client: TestClient, payload: dict):
