@@ -18,6 +18,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
+# Shared by the column, the request schema and slugify() so they cannot drift.
+INSTITUTION_SLUG_MAX_LENGTH = 220
+
 
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
@@ -33,7 +36,9 @@ class Institution(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str] = mapped_column(String(220), nullable=False, unique=True)
+    slug: Mapped[str] = mapped_column(
+        String(INSTITUTION_SLUG_MAX_LENGTH), nullable=False, unique=True
+    )
     description: Mapped[str | None] = mapped_column(Text)
     address: Mapped[str | None] = mapped_column(String(300))
     city: Mapped[str] = mapped_column(String(120), nullable=False)
