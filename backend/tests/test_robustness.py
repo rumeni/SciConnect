@@ -98,18 +98,10 @@ def _geocode(payload: object) -> geocoding.Location | None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=payload)
 
-    transport = httpx.MockTransport(handler)
-    original = httpx.get
-
-    def patched(url, **kwargs):
-        with httpx.Client(transport=transport) as stub:
-            return stub.get(url, **kwargs)
-
-    httpx.get = patched
-    try:
-        return geocoding.nominatim_geocoder("anywhere")
-    finally:
-        httpx.get = original
+    geocoder = geocoding.NominatimGeocoder(
+        transport=httpx.MockTransport(handler), sleep=lambda _seconds: None
+    )
+    return geocoder("anywhere")
 
 
 @pytest.mark.parametrize(

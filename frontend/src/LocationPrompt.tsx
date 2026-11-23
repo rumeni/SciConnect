@@ -1,5 +1,5 @@
 import { FormEvent, useRef, useState } from "react";
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import { useT } from "./i18n";
 import { useDialog } from "./useDialog";
 import { requestDeviceLocation, shortenPlaceName } from "./viewerLocation";
@@ -50,8 +50,11 @@ export function LocationPrompt({
         label: shortenPlaceName(found.label),
         source: "address",
       });
-    } catch {
-      setError(t("prompt.notFound"));
+    } catch (reason) {
+      // 503: the shared lookup budget is spent or the map service is down;
+      // 429: this visitor asked too often. Either way the address may be fine.
+      const busy = reason instanceof ApiError && (reason.status === 503 || reason.status === 429);
+      setError(t(busy ? "prompt.lookupBusy" : "prompt.notFound"));
     } finally {
       setBusy(null);
     }

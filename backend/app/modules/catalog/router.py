@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -10,7 +11,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import request_is_admin
 from app.modules.catalog import details, lookup, service
-from app.modules.catalog.geocoding import Geocoder, default_geocoder
+from app.modules.catalog.geocoding import Geocoder, GeocodingUnavailable, default_geocoder
 from app.modules.catalog.models import (
     AnalysisType,
     Institution,
@@ -200,7 +201,14 @@ def geocode(
     q: Annotated[str, Query(min_length=3, max_length=300)],
 ) -> GeocodeResult:
     """Place a written address, so a visitor can search around somewhere they name."""
-    located = geocoder(q)
+    try:
+        located = geocoder(q)
+    except GeocodingUnavailable as error:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Address lookup is busy right now. Try again shortly.",
+            headers={"Retry-After": str(max(1, math.ceil(error.retry_after)))},
+        ) from error
     if located is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, f"Could not find a location for '{q}'"

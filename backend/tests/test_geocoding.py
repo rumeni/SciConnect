@@ -2,7 +2,12 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.modules.catalog.geocoding import Location, address_query, nominatim_geocoder
+from app.modules.catalog.geocoding import (
+    GeocodingUnavailable,
+    Location,
+    NominatimGeocoder,
+    address_query,
+)
 
 BELGRADE = Location(latitude=44.8125, longitude=20.4612, label="Bulevar oslobodjenja 18")
 
@@ -87,18 +92,8 @@ def test_the_lookup_query_uses_the_most_specific_address_available(
 
 def _geocoder_against(handler) -> Location | None:
     """Run the real geocoder against a stubbed transport, never the network."""
-    transport = httpx.MockTransport(handler)
-    original = httpx.get
-
-    def patched(url, **kwargs):
-        with httpx.Client(transport=transport) as stub_client:
-            return stub_client.get(url, **kwargs)
-
-    httpx.get = patched
-    try:
-        return nominatim_geocoder("Bulevar oslobodjenja 18, Belgrade, Serbia")
-    finally:
-        httpx.get = original
+    geocoder = NominatimGeocoder(transport=httpx.MockTransport(handler), sleep=lambda _: None)
+    return geocoder("Bulevar oslobodjenja 18, Belgrade, Serbia")
 
 
 def test_the_geocoder_reads_a_nominatim_response() -> None:
@@ -119,8 +114,10 @@ def test_the_geocoder_treats_no_match_as_no_location() -> None:
     assert _geocoder_against(lambda request: httpx.Response(200, json=[])) is None
 
 
-def test_a_failing_geocoding_service_does_not_raise() -> None:
-    assert _geocoder_against(lambda request: httpx.Response(503)) is None
+def test_a_failing_geocoding_service_is_reported_as_unavailable() -> None:
+    # Not None: "the service did not answer" must not look like "no such place".
+    with pytest.raises(GeocodingUnavailable):
+        _geocoder_against(lambda request: httpx.Response(500))
 
 
 def test_an_unusable_match_does_not_raise() -> None:
